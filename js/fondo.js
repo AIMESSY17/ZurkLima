@@ -1,7 +1,11 @@
 import {DET} from './deteccion.js';
 import {turno} from './turno.js';
 
-const N=108, FREEZE=60, SUBJ=[0.589,0.727,0.641,0.975];
+const N0=108, FREEZE=60, SUBJ=[0.589,0.727,0.641,0.975];
+// celular o ahorro de datos: timelapse liviano (frames/m/: 1 de cada 2 fotogramas, 640 px). La lógica usa N y STEP.
+const LITE=innerWidth<820||!!(navigator.connection&&navigator.connection.saveData);
+const STEP=LITE?2:1, N=N0/STEP;
+const frameSrc=i=>(LITE?'frames/m/f':'frames/f')+String(i+1).padStart(3,'0')+'.webp';
 const VA=16/9, PA=1616/1080;
 const FACE=[0.40,0.05,0.63,0.57];
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -11,15 +15,35 @@ const seg=(p,a,b)=>clamp((p-a)/(b-a));
 const ease=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
 const lerp=(a,b,t)=>a+(b-a)*t;
 
-/* ---------- carga ---------- */
-const frames=new Array(N);let loaded=0;
-const total=N+2;
+/* ---------- carga ----------
+   El cartel de carga se va apenas están el primer fotograma, freeze.webp y subject.webp.
+   El resto de los fotogramas se baja de fondo, en orden de uso, guardados comprimidos (Blob).
+   Se decodifican con createImageBitmap (fuera del hilo principal) solo el actual y los 2 siguientes;
+   si uno todavía no llegó se usa el más cercano ya cargado. La textura se sube solo cuando cambia. */
+const blobs=new Array(N),bmps=new Map(),pend=new Set();let loaded=0;
 const bootPct=document.getElementById('bootPct'),boot=document.getElementById('boot');
-function tick(){loaded++;bootPct.textContent=String(Math.min(99,Math.round(loaded/total*100))).padStart(2,'0')+'%'}
-function loadImg(src){return new Promise(r=>{const i=new Image();i.decoding='async';i.onload=()=>{tick();r(i)};i.onerror=()=>{tick();r(null)};i.src=src})}
-const freezeP=loadImg('img/freeze.webp'), portraitP=loadImg('img/subject.webp');
-const frameP=[];
-for(let i=0;i<N;i++){frameP.push(loadImg('frames/f'+String(i+1).padStart(3,'0')+'.webp').then(im=>frames[i]=im))}
+const CIB=typeof createImageBitmap==='function';
+function tick(){loaded++;bootPct.textContent=String(Math.min(99,Math.round(loaded/3*100))).padStart(2,'0')+'%'}
+const getBlob=src=>fetch(src).then(r=>r.ok?r.blob():null).catch(()=>null);
+function decode(blob){if(!blob)return Promise.resolve(null);
+  if(CIB)return createImageBitmap(blob).catch(()=>null);
+  return new Promise(r=>{const i=new Image();const u=URL.createObjectURL(blob);i.onload=()=>r(i);i.onerror=()=>r(null);i.src=u})}
+const decodeSrc=src=>getBlob(src).then(decode);
+const freezeP=decodeSrc('img/freeze.webp').then(b=>{tick();return b}), portraitP=decodeSrc('img/subject.webp').then(b=>{tick();return b});
+const firstP=getBlob(frameSrc(0)).then(b=>{blobs[0]=b;return decode(b)}).then(b=>{if(b)bmps.set(0,b);tick();return b});
+// resto en orden de uso, de a 4 descargas a la vez (después del primero)
+firstP.then(()=>{let next=1;const run=()=>{if(next>=N)return;const i=next++;getBlob(frameSrc(i)).then(b=>{blobs[i]=b;run()})};for(let k=0;k<4;k++)run()});
+// pide decodificar un fotograma (si ya llegó) y suelta los que quedaron lejos
+function want(i){if(bmps.has(i)||pend.has(i)||!blobs[i])return;pend.add(i);
+  decode(blobs[i]).then(b=>{pend.delete(i);if(b)bmps.set(i,b)})}
+function frameFor(fi){
+  for(let k=0;k<3;k++)want((fi+k)%N);
+  for(const [k,b] of bmps){const d=(k-fi+N)%N;if(d>3&&k!==0){if(b.close)b.close();bmps.delete(k)}}
+  if(bmps.has(fi))return [fi,bmps.get(fi)];
+  // el más cercano ya decodificado (hacia atrás primero: no adelantar la acción)
+  for(let d=1;d<N;d++){const a=(fi-d+N)%N,b=(fi+d)%N;if(bmps.has(a))return [a,bmps.get(a)];if(bmps.has(b)){want(b);return [b,bmps.get(b)]}}
+  return [fi,null];
+}
 
 /* ---------- WebGL ---------- */
 const cv=document.getElementById('gl');
@@ -85,12 +109,22 @@ function setFrame(img){if(!img||img===curTex)return;gl.activeTexture(gl.TEXTURE0
 /* ---------- HUD ---------- */
 const hud=document.getElementById('hud'),cx=hud.getContext('2d');
 let W=0,H=0,DPR=1;
-// calidad adaptativa: multiplica la resolución del WebGL (tope 1.5); baja sola si los FPS caen
-let quality=1,ftAvg=16.7,ftN=0,lastNow=0;
-function resize(){DPR=Math.min(devicePixelRatio||1,2);W=cv.clientWidth;H=cv.clientHeight;
-  const gs=Math.min(DPR,1.5)*quality;cv.width=Math.round(W*gs);cv.height=Math.round(H*gs);gl.viewport(0,0,cv.width,cv.height);
-  hud.width=Math.round(W*DPR);hud.height=Math.round(H*DPR);cx.setTransform(DPR,0,0,DPR,0,0)}
+/* Calidad adaptativa del WebGL: escala inicial 1.0 en desktop y 0.75 en celular (× densidad, tope 1.5).
+   Cada 30 cuadros (o 0,5 s): si el promedio pasa 20 ms baja 0.1 (mínimo 0.5); si va holgado (60 fps sostenidos)
+   sube de a 0.05 hasta la escala inicial. El canvas del HUD también tiene densidad máxima 1.5. */
+const QMAX=innerWidth<820?.75:1;
+let quality=QMAX,ftSum=0,ftN=0,goodRuns=0,lastNow=0,hudDirty=true;
+function sizeGL(){const gs=Math.min(DPR,1.5)*quality;cv.width=Math.round(W*gs);cv.height=Math.round(H*gs);gl.viewport(0,0,cv.width,cv.height)}
+function resize(){DPR=Math.min(devicePixelRatio||1,1.5);W=cv.clientWidth;H=cv.clientHeight;sizeGL();
+  hud.width=Math.round(W*DPR);hud.height=Math.round(H*DPR);cx.setTransform(DPR,0,0,DPR,0,0);hudDirty=true}
 addEventListener('resize',resize);resize();
+function adapt(dt){
+  if(!(dt>0&&dt<1000))return;ftSum+=dt;if(++ftN<30&&ftSum<500)return;   // 30 cuadros o medio segundo (si va muy lento)
+  const avg=ftSum/ftN;ftSum=0;ftN=0;
+  if(avg>20&&quality>.5){quality=Math.max(.5,Math.round((quality-.1)*100)/100);goodRuns=0;sizeGL()}
+  else if(avg<17.5&&quality<QMAX){if(++goodRuns>=3){quality=Math.min(QMAX,Math.round((quality+.05)*100)/100);goodRuns=0;sizeGL()}}
+  else goodRuns=0;
+}
 
 const AMB='#FFD23A',RED='#FF2B2B',INK='#F1F4EC',NV='#8CFF5A';
 function corners(x,y,w,h,col,lw,len){cx.strokeStyle=col;cx.lineWidth=lw;const l=Math.min(len,w*.4,h*.4);cx.beginPath();
@@ -106,36 +140,115 @@ function note(x0,y0,x1,y1,lines,col,a){if(a<=0)return;cx.globalAlpha=a;
   cx.beginPath();cx.moveTo(x0,y0);cx.lineTo(x1,y1);cx.stroke();cx.setLineDash([]);
   cx.fillStyle=col;cx.beginPath();cx.arc(x0,y0,3.5,0,7);cx.fill();cx.beginPath();cx.arc(x1,y1,2.5,0,7);cx.fill();
   cx.textAlign=left?'right':'left';
-  cx.shadowColor='rgba(0,0,0,.9)';cx.shadowBlur=6;
-  lines.forEach((t,i)=>cx.fillText(t,x1+(x1<x0?-6:6),y1-6-(lines.length-1-i)*fs*1.05));
-  cx.shadowBlur=0;cx.textAlign='left';cx.globalAlpha=1}
+  // contorno oscuro en vez de shadowBlur (la sombra borrosa es cara de dibujar en cada cuadro)
+  cx.strokeStyle='rgba(0,0,0,.85)';cx.lineWidth=4;cx.lineJoin='round';
+  lines.forEach((t,i)=>{const X=x1+(x1<x0?-6:6),Y=y1-6-(lines.length-1-i)*fs*1.05;cx.strokeText(t,X,Y);cx.fillText(t,X,Y)});
+  cx.textAlign='left';cx.globalAlpha=1}
 function cross(x,y,s,col,lw=2){cx.strokeStyle=col;cx.lineWidth=lw;cx.beginPath();cx.moveTo(x-s,y);cx.lineTo(x+s,y);cx.moveTo(x,y-s);cx.lineTo(x,y+s);cx.stroke()}
+/* Anotaciones de la fase esfera.
+   Zonas prohibidas: los textos del inicio (warning, logo, subtítulo, "scrolleá") y el HUD de los bordes,
+   medidos con getBoundingClientRect. Cada anotación prueba posiciones alrededor del borde de la esfera
+   y usa la primera donde ni el texto ni los dos extremos de la línea punteada pisan una zona prohibida.
+   Por debajo de 820 px: solo 2 anotaciones, una arriba y otra abajo de la esfera.
+   Se calcula una vez por tamaño de pantalla (no en cada cuadro). */
+let sphereCache=null,heroK=1;
+const invalidateSphere=()=>{sphereCache=null};
+document.fonts&&document.fonts.ready.then(invalidateSphere);
+document.querySelector('#hero .logo').addEventListener('load',invalidateSphere);
+function forbiddenRects(){
+  const st=document.getElementById('stage').getBoundingClientRect(),out=[];
+  const K=1.08; // el hero crece hasta 1.08 mientras se desvanece: se reserva su tamaño máximo
+  document.querySelectorAll('#hero .warn,#hero .logo,#hero .sub,#hero .cue').forEach(el=>{const r=el.getBoundingClientRect();if(!r.width)return;
+    // unión del tamaño normal y el agrandado (al crecer, cada texto se corre desde el centro)
+    const f=(v,c,k)=>c+((v-c)/heroK)*k;const cxm=W/2,cym=H/2;
+    const xs=[1,K].flatMap(k=>[f(r.left-st.left,cxm,k),f(r.right-st.left,cxm,k)]),ys=[1,K].flatMap(k=>[f(r.top-st.top,cym,k),f(r.bottom-st.top,cym,k)]);
+    out.push({x0:Math.min(...xs)-10,y0:Math.min(...ys)-10,x1:Math.max(...xs)+10,y1:Math.max(...ys)+10})});
+  document.querySelectorAll('#stage .chrome,#rail').forEach(el=>{const r=el.getBoundingClientRect();if(!r.width||getComputedStyle(el).display==='none')return;
+    out.push({x0:r.left-st.left-8,y0:r.top-st.top-8,x1:r.right-st.left+8,y1:Math.max(r.bottom,r.top+60)-st.top+8})});
+  return out;
+}
+const hit=(a,b)=>a.x0<b.x1&&a.x1>b.x0&&a.y0<b.y1&&a.y1>b.y0;
+const inR=(x,y,r)=>x>r.x0&&x<r.x1&&y>r.y0&&y<r.y1;
+function sphereLayout(){
+  if(sphereCache&&sphereCache.W===W&&sphereCache.H===H)return sphereCache;
+  const A=W/H,R=.47*Math.min(A,1)*H,ox=W/2,oy=H/2,narrow=W<820;
+  const fs=Math.round(clamp(W/60,14,21));cx.font='700 '+fs+'px "Courier Prime", monospace';
+  const bad=forbiddenRects();
+  const DEFS=narrow?[
+    {lines:['WARNING:','DANGEROUSLY','CREATIVE'],col:AMB,ang:[-70,-110,-55,-125,-40,-140,-90]},
+    {lines:['search','required'],col:INK,ang:[70,110,55,125,40,140,90]},
+  ]:[
+    {lines:['unidentified','existence'],col:INK,ang:[205,195,215,225,185,235,245]},
+    {lines:['WARNING:','DANGEROUSLY','CREATIVE'],col:AMB,ang:[-55,-45,-65,-35,-75,-25,-85]},
+    {lines:['search','required'],col:INK,ang:[25,15,35,45,5,55,65]},
+  ];
+  const notes=[];
+  for(const d of DEFS){
+    const mw=Math.max(...d.lines.map(l=>cx.measureText(l).width)),th=fs*1.05*d.lines.length;
+    let found=null;
+    outer:for(const a of d.ang)for(const rr of [.9,1,.8,.7])for(const Lk of [.3,.5,.75,1.05,.18]){
+      const u=[Math.cos(a*Math.PI/180),Math.sin(a*Math.PI/180)];
+      const x0=ox+u[0]*R*rr,y0=oy+u[1]*R*rr,x1=ox+u[0]*(R*rr+R*Lk),y1=oy+u[1]*(R*rr+R*Lk);
+      const left=u[0]<-.15,below=u[1]>.5;
+      const bx0=left?x1-8-mw:x1+(u[0]>.15?8:-mw/2),bx1=bx0+mw+(left?0:0);
+      const by0=below?y1+6:y1-8-th,box={x0:bx0-4,y0:by0-4,x1:bx0+mw+4,y1:by0+th+6};
+      if(box.x0<10||box.x1>W-10||box.y0<10||box.y1>H-10)continue;
+      if(bad.some(r=>hit(box,r)||inR(x0,y0,r)||inR(x1,y1,r)))continue;
+      found={x0,y0,x1,y1,tx:bx0,ty:by0,lines:d.lines,col:d.col,fs};bad.push(box);break outer;
+    }
+    if(found)notes.push(found);
+  }
+  // decoración (cruces, corchetes, sol): solo las que no pisan textos ni anotaciones
+  const deco=[
+    {r:[ox-R*.62-14,oy+R*.05-14,28,28],draw:()=>cross(ox-R*.62,oy+R*.05,14,RED,3)},
+    {r:[ox-R*.82,oy-R*.12,R*.38,R*.42],draw:()=>corners(ox-R*.82,oy-R*.12,R*.38,R*.42,AMB,2,22)},
+    {r:[ox+R*.18,oy+R*.48,R*.22,R*.22],draw:()=>corners(ox+R*.18,oy+R*.48,R*.22,R*.22,AMB,3,18)},
+    {r:[ox+R*.44-11,oy-R*.02-11,22,22],draw:()=>sun(ox+R*.44,oy-R*.02,AMB)},
+    {r:[ox+R*.72-20,oy+R*.5-20,40,40],draw:()=>cross(ox+R*.72,oy+R*.5,20,AMB,1.5)},
+  ].filter(d=>{const b={x0:d.r[0],y0:d.r[1],x1:d.r[0]+d.r[2],y1:d.r[1]+d.r[3]};return !bad.some(r=>hit(b,r))});
+  sphereCache={W,H,notes,deco};return sphereCache;
+}
+// dibuja una anotación ya ubicada: línea punteada + puntos + texto (contorno oscuro en vez de sombra borrosa)
+function noteAt(n,a){if(a<=0)return;cx.globalAlpha=a;
+  cx.setLineDash([5,4]);cx.strokeStyle=n.col;cx.lineWidth=1.6;cx.beginPath();cx.moveTo(n.x0,n.y0);cx.lineTo(n.x1,n.y1);cx.stroke();cx.setLineDash([]);
+  cx.fillStyle=n.col;cx.beginPath();cx.arc(n.x0,n.y0,3.5,0,7);cx.fill();cx.beginPath();cx.arc(n.x1,n.y1,2.5,0,7);cx.fill();
+  cx.font='700 '+n.fs+'px "Courier Prime", monospace';cx.textBaseline='top';cx.lineJoin='round';
+  cx.strokeStyle='rgba(0,0,0,.85)';cx.lineWidth=4;
+  n.lines.forEach((t,i)=>{const y=n.ty+i*n.fs*1.05;cx.strokeText(t,n.tx,y);cx.fillText(t,n.tx,y)});
+  cx.textBaseline='alphabetic';cx.globalAlpha=1}
 function sun(x,y,col){cx.strokeStyle=col;cx.fillStyle=col;cx.lineWidth=1.5;cx.beginPath();cx.arc(x,y,4,0,7);cx.fill();for(let k=0;k<8;k++){const a=k*Math.PI/4;cx.beginPath();cx.moveTo(x+Math.cos(a)*7,y+Math.sin(a)*7);cx.lineTo(x+Math.cos(a)*11,y+Math.sin(a)*11);cx.stroke()}}
 
 /* ---------- consola ---------- */
 const LOG=[[0,'> cam07.connect("NQN-CENTRO") ... OK'],[.08,'> feed.mode = NVG / 40° FOV'],[.16,'> lens.unwarp() ... 3x3 → 1'],[.24,'> scan --faces --all'],[.34,'> 2.418 rostros indexados'],[.42,'> freeze --frame 0061'],[.47,'> lock target 0299'],[.55,'> threat.level = MUY ALTA'],[.62,'> zoom --follow 0299 --x3'],[.68,'> enhance --x8'],[.77,'> identity.lookup(db.NQN)'],[.84,'> match 99.7% → "BRUNO · ZURKLIMA"'],[.9,'> expediente.open(0299)']];
 const con=document.getElementById('console');let lastLog=-1;
-function setLog(p){let n=0;for(let i=0;i<LOG.length;i++)if(p>=LOG[i][0])n=i;if(n===lastLog)return;lastLog=n;con.textContent=LOG.slice(Math.max(0,n-3),n+1).map(l=>l[1]).join('\n')}
+function setLog(p){let n=0;for(let i=0;i<LOG.length;i++)if(p>=LOG[i][0])n=i;if(n===lastLog)return;lastLog=n;con.textContent=LOG.slice(Math.max(0,n-3),n+1).map(l=>l[1]).join('\n');if(innerWidth<820)placeSaltar()}
 
 /* ---------- loop ---------- */
 const track=document.getElementById('track'),hero=document.getElementById('hero'),enh=document.getElementById('enh'),enhBar=document.getElementById('enhBar'),enhLbl=document.getElementById('enhLbl'),cut=document.getElementById('cut'),file=document.getElementById('file'),stateEl=document.getElementById('state'),frRd=document.getElementById('frRd'),zoomRd=document.getElementById('zoomRd'),clock=document.getElementById('clock');
-const railEls=[...document.querySelectorAll('#rail span')];
+const railEls=[...document.querySelectorAll('#rail span')],saltar=document.getElementById('saltar');
 let pS=0,freezeImg=null,portraitImg=null,started=false,t0=performance.now();
 // anti-lag: el loop solo corre mientras el sticky está en pantalla
 let onScreen=true,running=false;
-function startLoop(){if(started&&onScreen&&!turno.muro&&!running){running=true;lastNow=0;requestAnimationFrame(frame)}}
+function startLoop(){if(started&&onScreen&&!turno.muro&&!turno.ficha&&!running){running=true;lastNow=0;requestAnimationFrame(frame)}}
 new IntersectionObserver(([e])=>{onScreen=e.isIntersecting;startLoop()},{rootMargin:'-2px 0px'}).observe(document.getElementById('stage'));
 turno.on(startLoop);
 function progress(){const r=track.getBoundingClientRect();const span=track.offsetHeight-innerHeight;return clamp(-r.top/span)}
 function pad(n){return String(n).padStart(2,'0')}
+// "SALTAR INTRO": en pantallas angostas, si pisa el reloj/consola de abajo, sube justo por encima
+function placeSaltar(){saltar.style.bottom='';if(innerWidth>=820)return;
+  const a=saltar.getBoundingClientRect(),b=document.querySelector('#stage .chrome.bl').getBoundingClientRect();
+  if(a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top)saltar.style.bottom=Math.round(innerHeight-b.top+10)+'px'}
+addEventListener('resize',placeSaltar);placeSaltar();document.fonts&&document.fonts.ready.then(placeSaltar);
+let lastHudKey='';
+const setText=(el,v)=>{if(el.__v!==v){el.__v=v;el.textContent=v}};
+const setStyle=(el,k,v)=>{const c=el.__s||(el.__s={});if(c[k]!==v){c[k]=v;el.style[k]=v}};
 
 function frame(now){
   // turno: si el muro del archivo está en pantalla, el fondo no anima (nunca dos WebGL a la vez)
-  if(!onScreen||turno.muro){running=false;return}
+  if(!onScreen||turno.muro||turno.ficha){running=false;return}
   requestAnimationFrame(frame);
   const t=(now-t0)/1000;
-  const dt=now-lastNow;lastNow=now;
-  if(dt>0&&dt<100){ftAvg+=(dt-ftAvg)*.05;if(++ftN>90&&ftAvg>24&&quality>.55){quality=Math.max(.55,quality*.8);ftN=0;ftAvg=16.7;resize()}}
+  const dt=lastNow?now-lastNow:0;lastNow=now;adapt(dt);
   const pT=progress();pS+=(pT-pS)*(reduce?1:.14);if(Math.abs(pT-pS)<.0004)pS=pT;const p=pS;
   const A=W/H;
 
@@ -155,9 +268,10 @@ function frame(now){
   const flash=Math.max(Math.sin(Math.PI*seg(p,.415,.435))*.55,Math.sin(Math.PI*seg(p,.775,.79))*.4);
 
   // textura del video
+  // fi = fotograma ORIGINAL (0-107: DET y el contador usan esa numeración); con el set liviano se muestra el par más cercano
   let fi;
   if(frozen&&freezeImg){setFrame(freezeImg);fi=FREEZE}
-  else{fi=Math.floor(t*(reduce?2:9))%N;let k=0;while(!frames[fi]&&k<N){fi=(fi+1)%N;k++}setFrame(frames[fi])}
+  else{const want0=Math.floor(Math.floor(t*(reduce?2:9))%N0/STEP);const [k,bm]=frameFor(want0);setFrame(bm);fi=k*STEP}
 
   // mapeo plano (cover) + zoom hacia el sujeto
   const sc=A>VA?[1,VA/A]:[A/VA,1];
@@ -182,18 +296,20 @@ function frame(now){
   gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
 
   // ---------- HUD 2D ----------
+  // se redibuja solo si cambió el progreso del scroll, el fotograma (cuando hay cajas de detección)
+  // o hay algo animándose (línea de escaneo, lock pulsando, escaneo facial); si no, no se toca
+  const hudAnim=(p>.22&&p<.42)||(p>=.47&&p<.78)||(p>.79&&p<=.845);
+  const hudKey=Math.round(p*1e4)+':'+(p>.22&&p<.42?fi:'');
+  if(hudDirty||hudAnim||hudKey!==lastHudKey){lastHudKey=hudKey;hudDirty=false;
   cx.clearRect(0,0,W,H);
   const toS=(x,y)=>[(.5+(x-C[0])/S[0])*W,(.5+(y-C[1])/S[1])*H];
   const toS2=(x,y)=>[(.5+(x-C2[0])/S2[0])*W,(.5+(y-C2[1])/S2[1])*H];
 
-  // fase esfera: anotaciones fijas estilo referencia
+  // fase esfera: anotaciones que esquivan el logo y los textos del inicio (ver sphereLayout)
   const aA=1-seg(p,.05,.12);
-  if(aA>0){const R=.47*Math.min(A,1)*H;const ox=W/2,oy=H/2;
-    note(ox-R*.55,oy-R*.18,ox-R*.92,oy-R*.42,['unidentified','existence'],INK,aA);
-    note(ox+R*.42,oy-R*.42,ox+R*.62,oy-R*.78,['WARNING:','DANGEROUSLY','CREATIVE'],AMB,aA);
-    note(ox+R*.3,oy+R*.32,ox+R*.72,oy+R*.18,['search','required'],INK,aA);
-    cx.globalAlpha=aA;cross(ox-R*.62,oy+R*.05,14,RED,3);corners(ox-R*.82,oy-R*.12,R*.38,R*.42,AMB,2,22);
-    corners(ox+R*.18,oy+R*.48,R*.22,R*.22,AMB,3,18);sun(ox+R*.44,oy-R*.02,AMB);cross(ox+R*.72,oy+R*.5,20,AMB,1.5);cx.globalAlpha=1}
+  if(aA>0){const L=sphereLayout();
+    L.notes.forEach(n=>noteAt(n,aA));
+    cx.globalAlpha=aA;L.deco.forEach(d=>d.draw());cx.globalAlpha=1}
 
   // centro
   if(p<.42){const ca=seg(p,.12,.2)*(1-seg(p,.38,.42));if(ca>0){cx.globalAlpha=ca*.8;cross(W/2,H/2,16,AMB,1.5);cx.globalAlpha=1}}
@@ -263,22 +379,25 @@ function frame(now){
     cx.globalAlpha=1;
   }
 
-  // ---------- DOM ----------
-  hero.style.opacity=1-seg(p,.02,.09);hero.style.transform='scale('+(1+seg(p,0,.09)*.08)+')';
-  const ek=seg(p,.66,.69)*(1-seg(p,.76,.78));enh.style.opacity=ek;const ep=Math.round(seg(p,.67,.765)*100);enhBar.style.width=ep+'%';enhLbl.textContent='RECONSTRUYENDO ROSTRO '+pad(Math.min(ep,99))+'%';
-  cut.style.opacity=0;
+  }
+
+  // ---------- DOM (solo se escribe lo que cambió) ----------
+  heroK=1+seg(p,0,.09)*.08;
+  setStyle(hero,'opacity',String(1-seg(p,.02,.09)));setStyle(hero,'transform','scale('+heroK+')');
+  const ek=seg(p,.66,.69)*(1-seg(p,.76,.78));setStyle(enh,'opacity',String(ek));const ep=Math.round(seg(p,.67,.765)*100);
+  if(ek>0){setStyle(enhBar,'width',ep+'%');setText(enhLbl,'RECONSTRUYENDO ROSTRO '+pad(Math.min(ep,99))+'%')}
   file.classList.toggle('on',p>.9);
+  saltar.classList.toggle('off',p>.9||pT>.9);
   let st='LIVE',al=false;if(p>=.24)st='SCANNING';if(frozen){st='FRAME FROZEN';}if(p>=.47){st='TARGET LOCKED';al=true}if(p>=.66){st='ENHANCE x8';al=false}if(p>=.79){st='IDENTIFYING';al=true}if(p>=.845){st='MATCH 99.7%';al=false}
   if(stateEl.textContent!==st){stateEl.textContent=st;stateEl.classList.toggle('alert',al)}
-  frRd.textContent='FR '+String(fi+1).padStart(4,'0')+'/0108';zoomRd.textContent=(p>.79?zp*1:zoom).toFixed(1);
+  setText(frRd,'FR '+String(fi+1).padStart(4,'0')+'/0108');setText(zoomRd,(p>.79?zp*1:zoom).toFixed(1));
   railEls.forEach((el,i)=>{const a=+el.dataset.a,b=i<railEls.length-1?+railEls[i+1].dataset.a:2;el.classList.toggle('on',p>=a&&p<b)});
   setLog(p);
-  const d=new Date();clock.textContent=pad(d.getDate())+'/'+pad(d.getMonth()+1)+'/'+d.getFullYear()+' '+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+  const d=new Date();setText(clock,pad(d.getDate())+'/'+pad(d.getMonth()+1)+'/'+d.getFullYear()+' '+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds()));
 }
 
-Promise.all([freezeP,portraitP,frameP[0]]).then(([fz,pt])=>{
+Promise.all([freezeP,portraitP,firstP]).then(([fz,pt])=>{
   freezeImg=fz;portraitImg=pt;
   if(pt){gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,T1);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,pt)}
-  const go=()=>{boot.classList.add('gone');if(!started){started=true;startLoop()}};
-  Promise.race([Promise.all(frameP),new Promise(r=>setTimeout(r,2500))]).then(go);
+  boot.classList.add('gone');if(!started){started=true;startLoop()}
 });

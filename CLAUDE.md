@@ -19,6 +19,9 @@ corchetes amarillos, alertas rojas, anotaciones con líneas punteadas. Estilo tr
 | `--amber` | `#FFD23A` | corchetes, advertencias, botones |
 | `--alert` | `#FF2B2B` | lock, peligro, sellos |
 | `--ink` | `#F1F4EC` | texto de anotaciones |
+| `--paper` | `#ECEBE4` | hoja de la ficha técnica (papel claro) |
+| `--paper-ink` | `#0D0D0C` | texto y garabatos sobre el papel |
+| `--paper-line` | `rgba(13,13,12,.18)` | divisiones finas de la hoja |
 
 Usar siempre los tokens, no colores sueltos.
 
@@ -27,6 +30,7 @@ Usar siempre los tokens, no colores sueltos.
 - **Courier Prime** (`--f-note`): anotaciones.
 - **IBM Plex Mono** (`--f-ui`): interfaz.
 - **Logo ZURKLIMA** como display.
+- **Permanent Marker**: solo para los garabatos a mano de la ficha técnica.
 
 ## Idioma
 - Textos de la ficha y de la interfaz: **español**.
@@ -41,17 +45,22 @@ Usar siempre los tokens, no colores sueltos.
 - `js/muro.js` — MURO INFINITO del archivo (WebGL con OGL): una malla instanciada, sin nodos DOM por foto.
 - `js/vendor/ogl.min.js` — OGL 1.0.11 (Unlicense), solo las piezas que se usan.
 - `js/deteccion.js` — exporta `DET` (cajas de personas por fotograma).
-- `js/archivo.js` — ARCHIVO: elige muro o grilla, filtros, visor de detalle, anclas con scroll suave.
+- `js/archivo.js` — ARCHIVO: elige muro o grilla, filtros, abre la ficha técnica, anclas con scroll suave.
+- `js/ficha.js` — FICHA TÉCNICA de cada foto (hoja clara, cotas, puntos, pasos de análisis, links `#zk-014`).
+- `datos/fotos.json` — datos editables de cada foto (fuente de `js/archivo-data.js`).
 - `js/archivo-data.js` — lista de fotos (GENERADO, no editar a mano).
-- `frames/` fotogramas del timelapse · `img/` freeze, retrato y evidencias de la ficha.
+- `frames/` fotogramas del timelapse (108, 1280 px) · `frames/m/` versión liviana para celular (54, 640 px,
+  webp q45; se regenera con `python tools/build-frames-m.py`) · `img/` freeze, retrato y evidencias de la ficha.
 - `fotos/` — originales de Bruno (no se sirven directo, no tocar).
 - `img/archivo/atlas.webp` — las 21 fotos en una sola textura (celdas 448 px) para el muro.
-- `img/archivo/sm/` miniaturas 480 px webp (grilla de respaldo) · `img/archivo/lg/` 1800 px webp (solo en el visor).
+- `img/archivo/sm/` miniaturas 480 px webp (grilla de respaldo y tira de la ficha) · `img/archivo/lg/` 1800 px webp (solo en la ficha técnica).
 - `assets/` — logo SVG, favicon, `og.jpg` (imagen para compartir), PNG y video originales.
 - `referencias/` — imágenes de referencia de estilo (no se publican en la web).
 
 ## Secciones (en orden)
-1. Fondo `#track/#stage` (CAM 07 → ficha/expediente).
+1. Fondo `#track/#stage` (CAM 07 → ficha/expediente). Botón "SALTAR INTRO ↓" (abajo al centro; en celular
+   abajo a la derecha y, si pisa la consola, justo arriba): lleva a `#archivo` con scroll suave (directo con
+   "reducir movimiento") y se oculta cuando el progreso pasa 0.9. El link de teclado "Saltar al archivo" sigue.
 2. `#archivo` — "ARCHIVO // EVIDENCIA" + filtros TODO / RETRATOS / CALLE / EN VIVO + MURO INFINITO.
 3. `#contacto` — "REPORTAR AVISTAMIENTO": Instagram (DM `https://ig.me/m/yo.zur` y perfil).
 4. Pie — logo, "FIN DE TRANSMISIÓN", volver arriba.
@@ -59,24 +68,68 @@ Usar siempre los tokens, no colores sueltos.
 ## Muro infinito (`js/muro.js`)
 - Columnas de anchos/alturas variadas que se repiten con módulo en las dos direcciones (nunca se termina).
   Las posiciones se calculan en JS y van como atributos instanciados; nada de layout del DOM por frame.
+- **Sin repetidas a la vista** (filtro TODO): el muro es un "toro" con una casilla por foto; el período
+  horizontal (BW) y el vertical de cada columna (P) son más grandes que la pantalla + una casilla, así que
+  ninguna foto puede verse dos veces. Por eso los monitores crecen en pantallas grandes. La cantidad de
+  columnas se elige sola según el tamaño. Con filtros de pocas fotos las repetidas son inevitables (se
+  reparten para que no queden pegadas). Prueba: `wrap._muroDebug.visibles()` / `panTo(x,y)`.
 - Arrastre (mouse/touch) y rueda con inercia; curvatura "tela" según la velocidad (vuelve a plano al frenar).
 - Hover: escaneo verde → color, corchetes amarillos y caja de análisis (zona de la cabeza = `BOX` en
   `tools/build-archivo.py`; tipos rostro / espalda / objeto). Cursor tipo mira.
-- Clic/tap sin arrastre (< 6 px) abre el visor (en el evento `click`, no en `pointerup`). Arrastrar nunca abre.
+- Clic/tap sin arrastre (< 6 px) abre la ficha técnica (en el evento `click`, no en `pointerup`). Arrastrar nunca abre.
 - Filtros: estática de "cambio de canal" y el muro se rearma con esa categoría.
-- Desktop: la rueda mueve el muro solo cuando el muro entra entero en pantalla; botón "↓ SEGUIR" para bajar.
+- Rueda (desktop): la rueda vertical **siempre** scrollea la página (nunca `preventDefault` en deltaY);
+  mientras el muro está en pantalla, además deriva solo con el scroll (~0.35 del recorrido).
+  El scroll horizontal del trackpad (deltaX) y Shift+rueda mueven el muro a los costados (ahí sí se
+  cancela el scroll). Arrastrar mueve libre en todas direcciones. "↓ SEGUIR" queda como atajo.
 - Táctil: vista previa quieta que no captura el scroll + "ENTRAR A LA SALA DE MONITOREO" → pantalla
   completa (`position:fixed`, `touch-action:none`, `history.pushState`; se sale con ✕ SALIR o el gesto atrás).
 - El rAF se apaga solo cuando no hay nada que mover; IntersectionObserver + `turno` con el fondo.
 - Respaldo: sin WebGL o con `prefers-reduced-motion` se muestra la grilla clásica. Con el muro activo,
-  la grilla queda como lista oculta accesible: Tab centra/analiza el monitor y Enter abre el visor;
-  "Saltar al archivo" abre el visor en la primera evidencia.
+  la grilla queda como lista oculta accesible: Tab centra/analiza el monitor y Enter abre la ficha;
+  "Saltar al archivo" abre la ficha de la primera evidencia.
+
+## Ficha técnica (`js/ficha.js`, `<dialog id="ficha">`)
+- Reemplaza al visor. Hoja clara (`--paper`) estilo hoja técnica de moda; es el único lugar donde la foto
+  se ve en color real. Fondo detrás: `--void` al 85 %, **sin** `backdrop-filter`.
+- Desktop: barra superior (100 %, íconos de etiqueta, "ZURKLIMA · ANÁLISIS DE EVIDENCIA", japonés
+  decorativo, bloque rojo, código) · izquierda: 2 recortes + "Visual Shape" · centro: foto grande con marco
+  rojo, cota LX01, cotas dx E01 / sx E02 / F02 / N01, puntos rojos en la cara (por proporción del `box`),
+  garabatos en Permanent Marker y código L0xx · derecha: tabla de datos + 4 pasos de análisis en canvas
+  (detección, rasgos, triangulación, extracción; "NO APLICA" donde no corresponde) · barra inferior: logo
+  en círculo, "Visualización técnica 014", código de barras generado, tira de la misma categoría, contador.
+- `tipo` espalda: puntos en la nuca y cota "SUJETO DE ESPALDAS — RASGOS NO DISPONIBLES".
+  `tipo` objeto: "OBJETO DE INTERÉS" con medidas del objeto en vez de puntos de cara.
+- Al abrir (< 1,2 s): el monitor vuela hasta la foto (FLIP), barrido verde → color, las cotas se dibujan
+  (`stroke-dashoffset`), los puntos aparecen en secuencia y los datos se escriben. Con "reducir movimiento":
+  directo, sin animación.
+- Navegación: ← →, ANT / SIG, swipe en celular, Esc y "CERRAR ✕". Precarga la foto grande anterior y siguiente.
+- Links: cada ficha es `#zk-014` (abrir la página con ese hash abre la ficha; al cerrar se limpia). El botón
+  atrás cierra la ficha (`history.pushState`); dentro de la sala del celular, el primer atrás cierra la
+  ficha y el segundo sale de la sala. Foco atrapado en el diálogo y al cerrar vuelve al monitor/botón.
+- Celular (< 820 px): una columna, cotas más simples, pasos con scroll horizontal, botones fijos abajo.
+- Anti-lag: con la ficha abierta `turno.ficha` frena el muro y el fondo (0 rAF). La foto grande se baja
+  solo al abrir. `html{scrollbar-gutter:stable}` evita que al bloquear el scroll se recalcule toda la página.
 
 ## Agregar o cambiar fotos del archivo
+Los datos de cada foto viven en **`datos/fotos.json`** (se edita a mano, sin tocar Python):
+```json
+{ "id": "zk-14", "codigo": "ZK-014", "titulo": "Humo en la estación", "categoria": "calle",
+  "fecha": "2025-03-14", "hora": "22:14", "lugar": "Neuquén", "fotografo": "Bruno — ZURKLIMA",
+  "alt": "texto alternativo", "tipo": "rostro|espalda|objeto", "box": [x1, y1, x2, y2] }
+```
+- `titulo`: corto (2 a 4 palabras), sacado de la foto; **no describir a las personas por rasgos físicos**.
+- `categoria`: `retratos` · `calle` · `en-vivo`.
+- `tipo` + `box`: zona de la cabeza (u objeto) normalizada 0–1; la usan el muro (caja de análisis y encuadre)
+  y la ficha técnica (puntos y cotas).
+- `fecha` / `hora`: si faltan, el build las genera **una sola vez** (semilla fija; fecha entre 2024-01-01 y el
+  día del build, hora entre 19:00 y 03:59) y las guarda en el JSON. Si ya están, no se tocan.
+
+Pasos:
 1. Copiar la foto a `fotos/` como `zk-XX.jpg|webp`.
-2. Agregar su categoría y texto alternativo en `INFO`, y la zona de la cabeza + tipo en `BOX`,
-   dentro de `tools/build-archivo.py`.
-3. `python tools/build-archivo.py` (necesita Pillow) → regenera miniaturas, grandes, atlas y `js/archivo-data.js`.
+2. `python tools/build-archivo.py` (necesita Pillow). Si la foto es nueva le crea una entrada de relleno en
+   `datos/fotos.json`: completar título, categoría, alt, tipo y box, y volver a correr el build.
+3. El build regenera miniaturas, grandes, atlas y `js/archivo-data.js` (no editar ese archivo a mano).
    (El atlas tiene 7 columnas de 448 px: con más de 63 fotos habría que agrandarlo.)
 
 ## Publicar
@@ -91,6 +144,17 @@ Cuando haya dominio, poner la URL absoluta en `og:image` (`https://DOMINIO/asset
 ## Fondo
 - **No cambiar la línea de tiempo del fondo** (fases, porcentajes de scroll, fotograma congelado 61,
   sujeto, zoom, enhance, match, ficha) salvo que se pida explícitamente.
+- Carga (`js/fondo.js`): con `innerWidth < 820` o `navigator.connection.saveData` usa `frames/m/` (la lógica
+  funciona con 54 o 108 fotogramas: `N`/`STEP`; `DET` y el contador siguen la numeración original de 108).
+  El cartel de carga se va apenas están el primer fotograma, `freeze.webp` y `subject.webp`; el resto baja
+  de fondo en orden de uso (de a 4). Se guardan comprimidos y se decodifican con `createImageBitmap` solo el
+  actual y los 2 siguientes; si uno no llegó se usa el más cercano. La textura se sube solo si cambia.
+- Costo por cuadro: calidad adaptativa del WebGL (inicio 1.0 desktop / 0.75 celular; si el promedio de
+  30 cuadros pasa 20 ms baja 0.1 hasta 0.5; si sobra, sube de a 0.05). HUD 2D con densidad máxima 1.5 y
+  redibujado solo si cambió el scroll, el fotograma (con cajas a la vista) o hay algo animándose. Al DOM
+  solo se le escribe lo que cambió. Texto de anotaciones con contorno, no `shadowBlur`.
+- Anotaciones de la fase esfera: esquivan el logo, los textos del inicio y el HUD (zonas medidas con
+  `getBoundingClientRect`); por debajo de 820 px, como máximo 2 (arriba y abajo de la esfera).
 
 ## Reglas anti-lag (aplican a todo)
 - Nada de `backdrop-filter` / blur encima de zonas que se mueven.

@@ -1,16 +1,17 @@
-/* ARCHIVO: muro infinito (WebGL), filtros, visor de detalle y grilla de respaldo.
+/* ARCHIVO: muro infinito (WebGL), filtros, ficha técnica de cada foto y grilla de respaldo.
    - Con WebGL y sin "reducir movimiento": se usa el MURO (js/muro.js). La grilla queda en el DOM
      sin imágenes, oculta a la vista pero accesible con teclado/lector (Tab centra el monitor en el muro).
    - Sin WebGL o con prefers-reduced-motion: se muestra la grilla clásica (respaldo). */
 import {FOTOS} from './archivo-data.js';
 import {initMuro} from './muro.js';
+import {initFicha} from './ficha.js';
 
 const CATS={'retratos':'RETRATOS','calle':'CALLE','en-vivo':'EN VIVO'};
 const pad=(n,l=2)=>String(n).padStart(l,'0');
 const evId=i=>'EV-'+pad(i+1);
 const camId=i=>'CAM '+pad((i*3)%21+1);
-// hora "de cámara" fija por foto, para que no cambie en cada visita
-const stamp=i=>pad(21+Math.floor(i/6)%3)+':'+pad((i*17+7)%60)+':'+pad((i*29+11)%60);
+// sello de cámara: fecha y hora de la toma (datos/fotos.json) → "14.03.25 · 22:14"
+const stamp=i=>{const [y,m,d]=FOTOS[i].fecha.split('-');return d+'.'+m+'.'+y.slice(2)+' · '+FOTOS[i].hora};
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const html=document.documentElement;
 
@@ -25,12 +26,17 @@ let muro=null;
 if(!reduce){
   muroEl.hidden=false;
   try{
-    muro=initMuro({wrap:muroEl,fotos:FOTOS,onOpen:i=>open(i,null),
+    muro=initMuro({wrap:muroEl,fotos:FOTOS,onOpen:(i,rect)=>open(i,muroEl.querySelector('.muro-gl'),rect),
       labels:FOTOS.map((f,i)=>({ev:evId(i),cam:camId(i),cat:CATS[f.cat]||'OBJETO',hora:stamp(i)}))});
   }catch(err){muro=null}
   if(!muro)muroEl.hidden=true;
 }
 archivo.classList.toggle('muro-on',!!muro);
+
+/* ---------- expediente del fondo: ÚLTIMA TOMA = la foto más reciente ---------- */
+{const last=[...FOTOS].sort((a,b)=>(a.fecha+a.hora).localeCompare(b.fecha+b.hora)).pop();
+  const el=document.getElementById('ultimaToma');
+  if(el&&last){const [y,m,d]=last.fecha.split('-');el.textContent=last.lugar+' · '+d+'/'+m+'/'+y}}
 
 /* ---------- grilla (respaldo visible, o lista accesible del muro) ---------- */
 const frag=document.createDocumentFragment();
@@ -75,58 +81,32 @@ function setFilter(f){
 filterBtns.forEach(b=>b.addEventListener('click',()=>setFilter(b.dataset.f)));
 setFilter('todo');
 
-/* ---------- visor ---------- */
-const dlg=document.getElementById('visor'),vImg=document.getElementById('vImg'),vId=document.getElementById('vId'),vCap=document.getElementById('vCap'),
-  vMeta=document.getElementById('vMeta'),vLoad=document.getElementById('vLoad'),scan=dlg.querySelector('.v-scan');
-let cur=-1,opener=null;
-const big=f=>`img/archivo/lg/${f.id}.webp`;
-function preload(i){if(i>=0&&i<FOTOS.length){const im=new Image();im.decoding='async';im.src=big(FOTOS[i])}}
-
-function show(i){
-  cur=i;const f=FOTOS[i];const pos=visible.indexOf(i);
-  vId.textContent='EVIDENCIA '+evId(i)+' · '+(CATS[f.cat]||'OBJETO');
-  vMeta.textContent=pad(pos+1)+' / '+pad(visible.length)+' · CAM 07 · NQN';
-  vCap.textContent=f.alt;
-  vImg.alt=f.alt;vImg.width=f.w;vImg.height=f.h;
-  vImg.classList.remove('reveal');vImg.classList.add('nv');vLoad.classList.add('on');
-  const done=()=>{vLoad.classList.remove('on');scan.classList.remove('go');void scan.offsetWidth;scan.classList.add('go');
-    requestAnimationFrame(()=>{vImg.classList.add('reveal');vImg.classList.remove('nv')})};
-  vImg.onload=done;vImg.onerror=()=>{vLoad.textContent='SEÑAL PERDIDA';};
-  vLoad.textContent='DESCARGANDO EVIDENCIA…';
-  vImg.src=big(f);
-  if(vImg.complete&&vImg.naturalWidth)done();
-  preload(visible[pos+1]);preload(visible[pos-1]);
+/* ---------- ficha técnica (js/ficha.js) ---------- */
+const ficha=initFicha({fotos:FOTOS,cam:camId,getVisible:()=>visible,
+  onOpenChange:on=>{if(!on&&muro)muro.blurFocus()}});
+// opener: elemento al que vuelve el foco al cerrar · rect: monitor del muro (vuela desde ahí)
+function open(i,opener,rect){
+  if(visible.indexOf(i)<0){setFilter('todo')}
+  const src=opener&&opener.querySelector?opener.querySelector('img'):null;
+  ficha.open(i,{rect:rect||(src&&src.getBoundingClientRect())||null,src,opener});
 }
-function step(d){if(cur<0)return;const pos=visible.indexOf(cur);const n=visible.length;show(visible[(pos+d+n)%n])}
-function open(i,btn){
-  if(visible.indexOf(i)<0)return;
-  opener=btn||document.activeElement;html.classList.add('lock');dlg.showModal();show(i);
-}
-function close(){dlg.close()}
-
-grid.addEventListener('click',e=>{const b=e.target.closest('.ev-btn');if(!b)return;open(+b.parentElement.dataset.i,b)});
-document.getElementById('vClose').addEventListener('click',close);
-document.getElementById('vPrev').addEventListener('click',()=>step(-1));
-document.getElementById('vNext').addEventListener('click',()=>step(1));
-dlg.addEventListener('close',()=>{html.classList.remove('lock');vImg.removeAttribute('src');cur=-1;
-  if(opener&&opener!==document.body&&document.contains(opener))opener.focus({preventScroll:true})});
-dlg.addEventListener('keydown',e=>{if(e.key==='ArrowRight'){e.preventDefault();step(1)}else if(e.key==='ArrowLeft'){e.preventDefault();step(-1)}});
-// clic en el fondo vacío cierra
-dlg.addEventListener('click',e=>{if(e.target===dlg||e.target.classList.contains('v-frame')||e.target.classList.contains('v-fig'))close()});
-// swipe horizontal en celular
-let sx=null,sy=0;
-vImg.addEventListener('pointerdown',e=>{sx=e.clientX;sy=e.clientY});
-vImg.addEventListener('pointerup',e=>{if(sx===null)return;const dx=e.clientX-sx,dy=e.clientY-sy;sx=null;if(Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy)*1.3)step(dx<0?1:-1)});
+grid.addEventListener('click',e=>{const b=e.target.closest('.ev-btn');if(!b)return;
+  // con el muro activo la lista está oculta: sin vuelo, solo el barrido de color
+  open(+b.parentElement.dataset.i,b,muro?null:undefined)});
+if(muro)muroEl.querySelector('.muro-gl').tabIndex=-1;
+// link directo a una ficha (#zk-014)
+ficha.openFromHash();
 
 /* ---------- anclas con scroll suave ---------- */
 document.addEventListener('click',e=>{
   const a=e.target.closest('a[href^="#"]');if(!a)return;
   const id=a.getAttribute('href').slice(1);
+  if(/^zk-\d+$/i.test(id))return;   // links a fichas: los maneja js/ficha.js
   if(id==='top'){e.preventDefault();scrollTo({top:0,behavior:reduce?'auto':'smooth'});return}
   const t=document.getElementById(id);if(!t)return;
   e.preventDefault();t.scrollIntoView({behavior:reduce?'auto':'smooth'});
   if(!t.hasAttribute('tabindex'))t.setAttribute('tabindex','-1');t.focus({preventScroll:true});
-  // "saltar al archivo" con el muro activo: abre el visor en la primera evidencia (se navega con las flechas)
+  // "saltar al archivo" con el muro activo: abre la ficha de la primera evidencia (se navega con las flechas)
   if(a.classList.contains('skip')&&muro&&visible.length){
     const first=cards[visible[0]].querySelector('.ev-btn');open(visible[0],first);
   }

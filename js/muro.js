@@ -12,7 +12,7 @@ import {ATLAS} from './archivo-data.js';
 import {turno} from './turno.js';
 
 const MAX = 600;                 // instancias máximas por frame
-const SW = 96, SH = 20, LS = 2;  // casilla de etiqueta (px css) y escala de su textura
+const SW = 136, SH = 20, LS = 2;  // casilla de etiqueta (px css) y escala de su textura
 const PAD = 8;
 const AMB = '#FFD23A', RED = '#FF2B2B', NV = '#8CFF5A', INK = '#F1F4EC';
 const COLF = [1, .84, 1.12, .92, 1.04, .8, .96, 1.08];      // anchos relativos de columna
@@ -124,7 +124,7 @@ export function initMuro({wrap, fotos, labels, onOpen}) {
   mesh.frustumCulled = false;
 
   /* ---------- estado ---------- */
-  let list = fotos.map((_, i) => i), cols = [], BW = 1, vw = 1, vh = 1, base = 0;
+  let list = fotos.map((_, i) => i), cols = [], BW = 1, vw = 1, vh = 1, base = 0, layoutKey = '';
   const pos = {x: 0, y: 0}, tgt = {x: 0, y: 0}, bend = {x: 0, y: 0};
   let visible = false, full = false, running = false, ready = false, dragging = false;
   let tap = null, down = null, ptr = null, kbd = -1, hk = null, hoverInfo = null, fxDirty = false;
@@ -143,24 +143,66 @@ export function initMuro({wrap, fotos, labels, onOpen}) {
     return {c, a: [uv[0] + c[0] * du + iu, uv[1] + c[1] * dv + iv, uv[0] + c[2] * du - iu, uv[1] + c[3] * dv - iv]};
   }
 
+  /* Armado SIN REPETIDAS A LA VISTA.
+     El muro es un "toro": cada columna se repite en vertical cada P px y el bloque de columnas
+     cada BW px en horizontal. Con el filtro TODO hay exactamente una casilla por foto en cada período,
+     así que una foto solo puede verse dos veces si dos copias de la misma casilla entran en pantalla.
+     Para que eso no pase, el período es más grande que la pantalla más la casilla:
+       BW − ancho de la columna ≥ ancho visible   y   P − alto de la casilla ≥ alto visible.
+     La cantidad de columnas (y de monitores por columna) se elige según la pantalla para que las
+     proporciones queden lindas. Con filtros de pocas fotos hay más casillas que fotos y las repetidas
+     son inevitables: ahí se reparten para que no queden pegadas. Todo es determinístico (semilla fija). */
   function buildLayout() {
-    base = vw < 520 ? 165 : vw < 1100 ? 215 : 255;
-    const gap = Math.round(base * .06), n = list.length, r = rng(7 + n);
-    const perm = [...list];
-    for (let i = n - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [perm[i], perm[j]] = [perm[j], perm[i]]; }
-    cols = []; let x = 0, t = 0;
-    COLF.forEach((f, ci) => {
-      const w = Math.round(base * f), nt = ci % 3 === 1 ? 5 : 4, tiles = []; let y = 0;
-      for (let k = 0; k < nt; k++) {
-        const h = Math.round(w * RAT[(ci * 4 + k * 3) % RAT.length]);
-        let p = perm[t++ % n];
-        if (n > 1 && tiles.length && tiles[tiles.length - 1].p === p) p = perm[t++ % n];
-        const cr = cropFor(p, w, h);
-        tiles.push({y, h, p, a: cr.a, c: cr.c}); y += h + gap;
+    const N = list.length, S = Math.max(N, 21), M = 6;
+    const g = vw < 520 ? 8 : 12, cT = vw < 520 ? 170 : vw < 1100 ? 215 : 250;
+    base = cT;
+    let best = null;
+    for (let nc = 3; nc <= Math.min(8, Math.floor(S / 3)); nc++) {
+      const per = Array(nc).fill(Math.floor(S / nc)), extra = S % nc;
+      for (let j = 0; j < extra; j++) per[Math.floor(j * nc / extra)]++;
+      const wf = per.map((_, i) => COLF[i % COLF.length]);
+      const sumF = wf.reduce((a, b) => a + b, 0), maxF = Math.max(...wf);
+      const cw = Math.max(cT, (vw + M - nc * g) / (sumF - maxF));
+      let score = .6 * Math.log(cw / cT) ** 2;
+      const colsH = per.map((n, i) => {
+        const r = Array.from({length: n}, (_, k) => RAT[(i * 4 + k * 3) % RAT.length]);
+        const sumR = r.reduce((a, b) => a + b, 0), maxR = Math.max(...r), sA = cw * wf[i];
+        const s = Math.max(sA, (vh + M - n * g) / (sumR - maxR));
+        score += Math.log(s / sA) ** 2;
+        return r.map(v => Math.round(s * v));
+      });
+      if (!best || score < best.score) best = {score, nc, per, wf, cw, colsH};
+    }
+    // reparto de fotos en las casillas
+    const r = rng(7 + N), perm = [...list];
+    for (let i = N - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [perm[i], perm[j]] = [perm[j], perm[i]]; }
+    const used = new Map(perm.map(p => [p, 0])), slots = [];
+    let t = 0, prevCol = new Set();
+    best.per.forEach((n) => {
+      const col = [];
+      for (let k = 0; k < n; k++) {
+        let p;
+        if (S === N) p = perm[t++];
+        else {
+          // la menos usada que no sea la de arriba/abajo (la columna es cíclica) ni esté en la columna anterior
+          const avoid = new Set([col[k - 1], k === n - 1 ? col[0] : undefined]);
+          const order = [...perm].sort((a, b) => used.get(a) - used.get(b));
+          p = order.find(q => !avoid.has(q) && !prevCol.has(q)) ?? order.find(q => !avoid.has(q)) ?? order[0];
+        }
+        used.set(p, used.get(p) + 1); col.push(p);
       }
-      cols.push({x, w, tiles, P: y, off: Math.round(r() * y)}); x += w + gap;
+      prevCol = new Set(col); slots.push(col);
     });
-    BW = x; hov.clear();
+    cols = []; let x = 0;
+    best.per.forEach((n, ci) => {
+      const w = Math.round(best.cw * best.wf[ci]), tiles = []; let y = 0;
+      for (let k = 0; k < n; k++) {
+        const h = best.colsH[ci][k], p = slots[ci][k], cr = cropFor(p, w, h);
+        tiles.push({y, h, p, a: cr.a, c: cr.c}); y += h + g;
+      }
+      cols.push({x, w, tiles, P: y, off: Math.round(r() * y)}); x += w + g;
+    });
+    BW = x; hov.clear(); layoutKey = vw + 'x' + vh;
   }
 
   // recorre los monitores que caen en pantalla (+ margen); el módulo hace que nunca se terminen
@@ -258,7 +300,7 @@ export function initMuro({wrap, fotos, labels, onOpen}) {
   /* ---------- loop ---------- */
   const clampV = v => Math.max(-60, Math.min(60, v));
   function tick(now) {
-    if (!ready || !(visible || full)) { running = false; lastNow = 0; return; }
+    if (!ready || !(visible || full) || turno.ficha) { running = false; lastNow = 0; return; }
     const dt = lastNow ? Math.min(50, now - lastNow) : 16.7; lastNow = now;
     if (dt > 0 && dt < 100) {   // calidad adaptativa: si el promedio pasa de ~40 fps hacia abajo, bajar resolución
       ftAvg += (dt - ftAvg) * .05;
@@ -287,7 +329,8 @@ export function initMuro({wrap, fotos, labels, onOpen}) {
     if (moving || dragging || hAnim || statT0 >= 0) requestAnimationFrame(tick);
     else { running = false; lastNow = 0; }
   }
-  function wake() { if (!running && ready && (visible || full)) { running = true; requestAnimationFrame(tick); } }
+  function wake() { if (!running && ready && (visible || full) && !turno.ficha) { running = true; requestAnimationFrame(tick); } }
+  turno.on(() => { if (!turno.ficha) { ptr = null; wake(); } });
 
   function resize() {
     const r = wrap.getBoundingClientRect();
@@ -295,8 +338,7 @@ export function initMuro({wrap, fotos, labels, onOpen}) {
     renderer.dpr = dprOf(); renderer.setSize(vw, vh);
     const d = dprOf(); fx.width = Math.round(vw * d); fx.height = Math.round(vh * d); fctx.setTransform(d, 0, 0, d, 0, 0); fxDirty = false;
     program.uniforms.uRes.value = [vw, vh]; program.uniforms.uCompact.value = vw < 520 ? 1 : 0;
-    const nb = vw < 520 ? 165 : vw < 1100 ? 215 : 255;
-    if (ready && nb !== base) buildLayout();
+    if (ready && layoutKey !== vw + 'x' + vh) buildLayout();   // el armado depende del tamaño visible
   }
   new ResizeObserver(() => { resize(); wake(); }).observe(wrap);
   new IntersectionObserver(([e]) => { visible = e.isIntersecting; turno.set(visible || full); if (visible) wake(); }).observe(wrap);
@@ -362,26 +404,34 @@ export function initMuro({wrap, fotos, labels, onOpen}) {
       if (performance.now() - down.lt < 90) { tgt.x -= down.vx * 260; tgt.y -= down.vy * 260; }   // inercia al soltar
     } else if (e.type === 'pointerup') {
       // clic/tap sin arrastre (< 6 px): se abre en el evento "click" que sigue, así ese click
-      // no cae sobre el visor recién abierto (en táctil lo cerraría al instante)
-      const p = local(e), hit = hitTest(p.x, p.y);
-      tap = hit ? hit.t.p : null;
+      // no cae sobre la ficha recién abierta (en táctil la cerraría al instante)
+      const p = local(e), hit = hitTest(p.x, p.y), r = cv.getBoundingClientRect();
+      // foto + rectángulo del monitor en pantalla (la ficha técnica vuela desde ahí)
+      tap = hit ? {p: hit.t.p, rect: {left: r.left + hit.sx, top: r.top + hit.sy, width: hit.w, height: hit.h}} : null;
     }
     down = null; dragging = false; wrap.classList.remove('drag'); wake();
   };
   cv.addEventListener('pointerup', up);
   cv.addEventListener('pointercancel', up);
   cv.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') { ptr = null; wake(); } });
+  /* Rueda: la vertical SIEMPRE scrollea la página (nunca se frena). El scroll horizontal del trackpad
+     y Shift+rueda mueven el muro a los costados (solo ahí se cancela el scroll del navegador).
+     En la sala a pantalla completa la rueda mueve el muro en las dos direcciones. */
   wrap.addEventListener('wheel', e => {
     if (!interactive()) return;
-    const r = wrap.getBoundingClientRect();
-    // la rueda mueve el muro solo cuando el muro entra entero en pantalla; antes, scrollea la página
-    if (!full && (r.top < -4 || r.bottom > innerHeight + 4)) return;
-    e.preventDefault();
     const m = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? vh : 1;
     let dx = e.deltaX * m, dy = e.deltaY * m;
     if (e.shiftKey && !dx) { dx = dy; dy = 0; }
-    tgt.x += dx; tgt.y += dy; wake();
+    if (full) { e.preventDefault(); tgt.x += dx; tgt.y += dy; wake(); return; }
+    if (Math.abs(dx) > Math.abs(dy)) { e.preventDefault(); tgt.x += dx; wake(); }
   }, {passive: false});
+  // deriva: mientras el muro está en pantalla, se desliza solo con el scroll de la página (~0.35 del recorrido)
+  let lastSY = scrollY;
+  addEventListener('scroll', () => {
+    const y = scrollY, d = y - lastSY; lastSY = y;
+    if (!ready || !visible || full || touchMode || !d) return;
+    tgt.y += d * .35; wake();
+  }, {passive: true});
 
   /* ---------- celular: vista previa quieta + sala a pantalla completa ---------- */
   const entrar = wrap.querySelector('.muro-entrar'), salir = wrap.querySelector('.muro-salir');
@@ -402,16 +452,17 @@ export function initMuro({wrap, fotos, labels, onOpen}) {
   entrar.addEventListener('click', enterFull);
   cv.addEventListener('click', () => {
     if (touchMode && !full) { enterFull(); return; }
-    if (tap !== null) { const p = tap; tap = null; onOpen(p); }
+    if (tap !== null) { const t = tap; tap = null; onOpen(t.p, t.rect); }
   });
   salir.addEventListener('click', () => exitFull(false));
+  // atrás: si la entrada actual sigue siendo la sala (p. ej. se cerró una ficha abierta encima), seguir adentro
   addEventListener('popstate', () => {
-    if (!full) return;
-    const d = document.getElementById('visor'); if (d && d.open) d.close();
+    if (!full || (history.state && history.state.muro)) return;
+    if ((history.state && history.state.ficha) || /^#zk-\d+$/i.test(location.hash)) return;   // abrir una ficha por hash no es "atrás"
     exitFull(true);
   });
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && full && !document.getElementById('visor')?.open) exitFull(false);
+    if (e.key === 'Escape' && full && !document.getElementById('ficha')?.open) exitFull(false);
   });
 
   /* ---------- teclado: centrar el monitor de la foto enfocada ---------- */
@@ -432,5 +483,11 @@ export function initMuro({wrap, fotos, labels, onOpen}) {
     pendingList = next; statT0 = performance.now(); wake();
   }
 
+  // para las pruebas: fotos que se ven dentro del muro y paneo directo
+  wrap._muroDebug = {
+    visibles() { const out = []; forEachTile(0, (sx, sy, w, h, t) => { if (sx < vw && sx + w > 0 && sy < vh && sy + h > 0) out.push(t.p); }); return out; },
+    panTo(x, y) { pos.x = tgt.x = x; pos.y = tgt.y = y; bend.x = bend.y = 0; wake(); },
+    info: () => ({vw, vh, BW, cols: cols.map(c => ({w: c.w, n: c.tiles.length, P: c.P}))}),
+  };
   return {setList, focusPhoto, blurFocus, isFull: () => full, touchMode};
 }

@@ -1,62 +1,76 @@
-"""Genera las imágenes del ARCHIVO a partir de fotos/ (los originales no se tocan).
+"""Genera las imágenes y los datos del ARCHIVO a partir de fotos/ (los originales no se tocan).
+
+Fuente editable a mano: datos/fotos.json (una entrada por foto). Este script:
+  - completa lo que falte en cada entrada y, si completó algo, vuelve a guardar el JSON:
+      codigo     "ZK-001" a partir del número del archivo
+      fecha      al azar entre 2024-01-01 y el día en que se genera (semilla fija por foto)
+      hora       al azar entre 19:00 y 03:59 (fotografía nocturna, misma semilla)
+      lugar      "Neuquén"
+      fotografo  "Bruno — ZURKLIMA"
+    Lo que ya está en el JSON NO se regenera: se puede editar a mano sin miedo.
+  - si hay una foto nueva en fotos/ sin entrada, le crea una con valores de relleno para completar.
+Salidas:
   img/archivo/sm/zk-XX.webp  -> miniatura 480 px de ancho (grilla de respaldo)
-  img/archivo/lg/zk-XX.webp  -> foto grande, lado mayor 1800 px (solo en el visor)
+  img/archivo/lg/zk-XX.webp  -> foto grande, lado mayor 1800 px (solo en la ficha técnica)
   img/archivo/atlas.webp     -> las fotos en una sola imagen (celdas de 448 px) para el muro WebGL
-  js/archivo-data.js         -> lista de fotos: tamaño, categoría, texto alternativo, zona de la cabeza y celda del atlas
+  js/archivo-data.js         -> lista de fotos para la web
 Uso: python tools/build-archivo.py   (necesita Pillow)
 """
-import json, os, glob
+import json, os, re, glob, random, datetime
 from PIL import Image, ImageOps
 
-# id: (categoría, texto alternativo)
-INFO = {
- 'zk-01': ('retratos', 'Sujeto con gorro y campera roja frente a una computadora en un estudio oscuro'),
- 'zk-02': ('retratos', 'Sujeto con pasamontañas y buzo ZURKLIMA frente a una persiana azul'),
- 'zk-03': ('retratos', 'Sujeto con pasamontañas señalando a cámara'),
- 'zk-04': ('calle', 'Cassette Sony ZX60 bajo luz cálida'),
- 'zk-05': ('retratos', 'Espalda con tatuaje en la nuca y buzo negro'),
- 'zk-06': ('calle', 'Persona en un parque mostrando la espalda de su buzo'),
- 'zk-07': ('calle', 'Sombras de manos proyectadas sobre una pared azul'),
- 'zk-08': ('retratos', 'Retrato de perfil con tatuajes en la cara y el cuello'),
- 'zk-09': ('calle', 'Chica con anteojos de sol entre taxis amarillos'),
- 'zk-10': ('calle', 'Retrato en blanco y negro con capucha frente a un edificio'),
- 'zk-11': ('calle', 'Espalda de buzo con estampa, al aire libre'),
- 'zk-12': ('retratos', 'Nuca con tatuaje en primer plano'),
- 'zk-13': ('calle', 'Persona caminando de noche junto a una estación de servicio'),
- 'zk-14': ('calle', 'Encapuchado fumando en una estación de servicio de noche'),
- 'zk-15': ('calle', 'Chica apoyada en una vidriera mirando a cámara'),
- 'zk-16': ('retratos', 'Sujeto con gorra en un taller'),
- 'zk-17': ('retratos', 'Sujeto detrás de una reja en un taller'),
- 'zk-18': ('calle', 'Dos chicos con gorra al atardecer frente al lago'),
- 'zk-19': ('en-vivo', 'Cantante con gorra blanca y micrófono en un show'),
- 'zk-20': ('en-vivo', 'Rapero con gorra y camiseta verde rapeando en vivo'),
- 'zk-21': ('retratos', 'Retrato nocturno de un hombre con anteojos bajo luz de calle'),
-}
-
-# zona de la cabeza/objeto (x0,y0,x1,y1 normalizado 0-1) y tipo, para la caja de análisis y el encuadre:
-# 'rostro' = cara visible · 'espalda' = de espaldas · 'objeto' = sin persona
-BOX = {
- 'zk-01': ('rostro', (.14,.33,.42,.56)), 'zk-02': ('rostro', (.40,.04,.60,.46)), 'zk-03': ('rostro', (.44,.00,.64,.36)),
- 'zk-04': ('objeto', (.55,.15,.85,.42)), 'zk-05': ('espalda', (.18,.00,.66,.38)), 'zk-06': ('espalda', (.48,.00,.78,.20)),
- 'zk-07': ('objeto', (.55,.25,.80,.55)), 'zk-08': ('rostro', (.22,.08,.76,.58)), 'zk-09': ('rostro', (.38,.40,.60,.56)),
- 'zk-10': ('rostro', (.40,.28,.62,.44)), 'zk-11': ('espalda', (.32,.00,.64,.32)), 'zk-12': ('espalda', (.30,.05,.85,.60)),
- 'zk-13': ('espalda', (.40,.02,.60,.22)), 'zk-14': ('rostro', (.36,.08,.64,.40)), 'zk-15': ('rostro', (.42,.08,.62,.32)),
- 'zk-16': ('rostro', (.34,.36,.58,.60)), 'zk-17': ('rostro', (.38,.27,.62,.50)), 'zk-18': ('rostro', (.22,.36,.48,.58)),
- 'zk-19': ('rostro', (.35,.15,.60,.42)), 'zk-20': ('rostro', (.38,.10,.60,.38)), 'zk-21': ('rostro', (.32,.10,.82,.68)),
-}
 CELL, ACOLS = 448, 7
-
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+datos_path = os.path.join(root, 'datos', 'fotos.json')
 sm_dir = os.path.join(root, 'img', 'archivo', 'sm'); lg_dir = os.path.join(root, 'img', 'archivo', 'lg')
 os.makedirs(sm_dir, exist_ok=True); os.makedirs(lg_dir, exist_ok=True)
 
+datos = json.load(open(datos_path, encoding='utf-8')) if os.path.exists(datos_path) else []
+by_id = {d['id']: d for d in datos}
 files = sorted(glob.glob(os.path.join(root, 'fotos', 'zk-*.*')))
+
+# ---- completar datos que falten (una sola vez; queda guardado en el JSON) ----
+cambio = False
+D0 = datetime.date(2024, 1, 1)
+for f in files:
+    id_ = os.path.splitext(os.path.basename(f))[0]
+    d = by_id.get(id_)
+    if d is None:
+        d = {'id': id_, 'titulo': 'Sin título', 'categoria': 'calle', 'alt': 'Fotografía de ZURKLIMA',
+             'tipo': 'objeto', 'box': [.35, .3, .65, .6]}
+        datos.append(d); by_id[id_] = d; cambio = True
+        print('foto nueva sin datos:', id_, '-> completar titulo/categoria/alt/tipo/box en datos/fotos.json')
+    rnd = random.Random('zurklima-' + id_)   # semilla fija por foto
+    defaults = {
+        'codigo': 'ZK-' + id_.split('-')[1].zfill(3),
+        'fecha': (D0 + datetime.timedelta(days=rnd.randrange((datetime.date.today() - D0).days + 1))).isoformat(),
+        'hora': '%02d:%02d' % ((19 + rnd.randrange(9)) % 24, rnd.randrange(60)),
+        'lugar': 'Neuquén',
+        'fotografo': 'Bruno — ZURKLIMA',
+    }
+    for k, v in defaults.items():
+        if not d.get(k):
+            d[k] = v; cambio = True
+
+ORDEN = ['id', 'codigo', 'titulo', 'categoria', 'fecha', 'hora', 'lugar', 'fotografo', 'alt', 'tipo', 'box']
+if cambio:
+    datos.sort(key=lambda d: d['id'])
+    datos = [{k: d[k] for k in ORDEN if k in d} | {k: v for k, v in d.items() if k not in ORDEN} for d in datos]
+    with open(datos_path, 'w', encoding='utf-8', newline='\n') as o:
+        txt = json.dumps(datos, ensure_ascii=False, indent=2)
+        txt = re.sub(r'\[\s+([^\[\]]*?)\s+\]', lambda m: '[' + re.sub(r'\s+', ' ', m.group(1)) + ']', txt)  # box en una línea
+        o.write(txt + '\n')
+    by_id = {d['id']: d for d in datos}
+    print('datos/fotos.json actualizado')
+
+# ---- imágenes ----
 arows = (len(files) + ACOLS - 1) // ACOLS
 atlas = Image.new('RGB', (CELL * ACOLS, CELL * arows), 'black')
 AW, AH = atlas.size
 items = []
 for n, f in enumerate(files):
     id_ = os.path.splitext(os.path.basename(f))[0]
+    d = by_id[id_]
     im = ImageOps.exif_transpose(Image.open(f)).convert('RGB')
     w, h = im.size
     im.resize((480, round(h * 480 / w)), Image.LANCZOS).save(os.path.join(sm_dir, id_ + '.webp'), 'WEBP', quality=72, method=6)
@@ -66,13 +80,14 @@ for n, f in enumerate(files):
     k2 = CELL / max(w, h); cw, ch = round(w * k2), round(h * k2)
     x0 = (n % ACOLS) * CELL + (CELL - cw) // 2; y0 = (n // ACOLS) * CELL + (CELL - ch) // 2
     atlas.paste(im.resize((cw, ch), Image.LANCZOS), (x0, y0))
-    cat, alt = INFO[id_]; tipo, box = BOX[id_]
-    items.append({'id': id_, 'w': lg.width, 'h': lg.height, 'cat': cat, 'alt': alt, 'tipo': tipo, 'box': box,
+    items.append({'id': id_, 'codigo': d['codigo'], 'titulo': d['titulo'], 'cat': d['categoria'],
+                  'fecha': d['fecha'], 'hora': d['hora'], 'lugar': d['lugar'], 'fotografo': d['fotografo'],
+                  'w': lg.width, 'h': lg.height, 'alt': d['alt'], 'tipo': d['tipo'], 'box': d['box'],
                   'uv': [round(x0 / AW, 5), round(y0 / AH, 5), round((x0 + cw) / AW, 5), round((y0 + ch) / AH, 5)]})
 
 atlas.save(os.path.join(root, 'img', 'archivo', 'atlas.webp'), 'WEBP', quality=78, method=6)
 with open(os.path.join(root, 'js', 'archivo-data.js'), 'w', encoding='utf-8', newline='\n') as o:
-    o.write('/* Generado por tools/build-archivo.py — no editar a mano */\n')
+    o.write('/* Generado por tools/build-archivo.py a partir de datos/fotos.json — no editar a mano */\n')
     o.write('export const ATLAS = ' + json.dumps({'src': 'img/archivo/atlas.webp', 'w': AW, 'h': AH}) + ';\n')
-    o.write('export const FOTOS = ' + json.dumps(items, ensure_ascii=False) .replace('}, {', '},\n {') + ';\n')
+    o.write('export const FOTOS = ' + json.dumps(items, ensure_ascii=False).replace('}, {', '},\n {') + ';\n')
 print(len(items), 'fotos · atlas', AW, 'x', AH)
