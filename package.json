@@ -1,0 +1,9 @@
+{
+  "name": "zurklima",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Web de ZURKLIMA — fotografía · Neuquén",
+  "scripts": {
+    "dev": "npx --yes serve@14.2.4 -l 3000 ."
+  }
+}
