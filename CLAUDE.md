@@ -81,10 +81,24 @@ Usar siempre los tokens, no colores sueltos.
   "Saltar al archivo" abre el visor en la primera evidencia.
 
 ## Agregar o cambiar fotos del archivo
+Los datos de cada foto viven en **`datos/fotos.json`** (se edita a mano, sin tocar Python):
+```json
+{ "id": "zk-14", "codigo": "ZK-014", "titulo": "Humo en la estación", "categoria": "calle",
+  "fecha": "2025-03-14", "hora": "22:14", "lugar": "Neuquén", "fotografo": "Bruno — ZURKLIMA",
+  "alt": "texto alternativo", "tipo": "rostro|espalda|objeto", "box": [x1, y1, x2, y2] }
+```
+- `titulo`: corto (2 a 4 palabras), sacado de la foto; **no describir a las personas por rasgos físicos**.
+- `categoria`: `retratos` · `calle` · `en-vivo`.
+- `tipo` + `box`: zona de la cabeza (u objeto) normalizada 0–1; la usan el muro (caja de análisis y encuadre)
+  y la ficha técnica (puntos y cotas).
+- `fecha` / `hora`: si faltan, el build las genera **una sola vez** (semilla fija; fecha entre 2024-01-01 y el
+  día del build, hora entre 19:00 y 03:59) y las guarda en el JSON. Si ya están, no se tocan.
+
+Pasos:
 1. Copiar la foto a `fotos/` como `zk-XX.jpg|webp`.
-2. Agregar su categoría y texto alternativo en `INFO`, y la zona de la cabeza + tipo en `BOX`,
-   dentro de `tools/build-archivo.py`.
-3. `python tools/build-archivo.py` (necesita Pillow) → regenera miniaturas, grandes, atlas y `js/archivo-data.js`.
+2. `python tools/build-archivo.py` (necesita Pillow). Si la foto es nueva le crea una entrada de relleno en
+   `datos/fotos.json`: completar título, categoría, alt, tipo y box, y volver a correr el build.
+3. El build regenera miniaturas, grandes, atlas y `js/archivo-data.js` (no editar ese archivo a mano).
    (El atlas tiene 7 columnas de 448 px: con más de 63 fotos habría que agrandarlo.)
 
 ## Publicar

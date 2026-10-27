@@ -9,8 +9,8 @@ const CATS={'retratos':'RETRATOS','calle':'CALLE','en-vivo':'EN VIVO'};
 const pad=(n,l=2)=>String(n).padStart(l,'0');
 const evId=i=>'EV-'+pad(i+1);
 const camId=i=>'CAM '+pad((i*3)%21+1);
-// hora "de cámara" fija por foto, para que no cambie en cada visita
-const stamp=i=>pad(21+Math.floor(i/6)%3)+':'+pad((i*17+7)%60)+':'+pad((i*29+11)%60);
+// sello de cámara: fecha y hora de la toma (datos/fotos.json) → "14.03.25 · 22:14"
+const stamp=i=>{const [y,m,d]=FOTOS[i].fecha.split('-');return d+'.'+m+'.'+y.slice(2)+' · '+FOTOS[i].hora};
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const html=document.documentElement;
 
@@ -31,6 +31,11 @@ if(!reduce){
   if(!muro)muroEl.hidden=true;
 }
 archivo.classList.toggle('muro-on',!!muro);
+
+/* ---------- expediente del fondo: ÚLTIMA TOMA = la foto más reciente ---------- */
+{const last=[...FOTOS].sort((a,b)=>(a.fecha+a.hora).localeCompare(b.fecha+b.hora)).pop();
+  const el=document.getElementById('ultimaToma');
+  if(el&&last){const [y,m,d]=last.fecha.split('-');el.textContent=last.lugar+' · '+d+'/'+m+'/'+y}}
 
 /* ---------- grilla (respaldo visible, o lista accesible del muro) ---------- */
 const frag=document.createDocumentFragment();

@@ -12,7 +12,7 @@ import {ATLAS} from './archivo-data.js';
 import {turno} from './turno.js';
 
 const MAX = 600;                 // instancias máximas por frame
-const SW = 96, SH = 20, LS = 2;  // casilla de etiqueta (px css) y escala de su textura
+const SW = 136, SH = 20, LS = 2;  // casilla de etiqueta (px css) y escala de su textura
 const PAD = 8;
 const AMB = '#FFD23A', RED = '#FF2B2B', NV = '#8CFF5A', INK = '#F1F4EC';
 const COLF = [1, .84, 1.12, .92, 1.04, .8, .96, 1.08];      // anchos relativos de columna
