@@ -59,12 +59,20 @@ Usar siempre los tokens, no colores sueltos.
 ## Muro infinito (`js/muro.js`)
 - Columnas de anchos/alturas variadas que se repiten con módulo en las dos direcciones (nunca se termina).
   Las posiciones se calculan en JS y van como atributos instanciados; nada de layout del DOM por frame.
+- **Sin repetidas a la vista** (filtro TODO): el muro es un "toro" con una casilla por foto; el período
+  horizontal (BW) y el vertical de cada columna (P) son más grandes que la pantalla + una casilla, así que
+  ninguna foto puede verse dos veces. Por eso los monitores crecen en pantallas grandes. La cantidad de
+  columnas se elige sola según el tamaño. Con filtros de pocas fotos las repetidas son inevitables (se
+  reparten para que no queden pegadas). Prueba: `wrap._muroDebug.visibles()` / `panTo(x,y)`.
 - Arrastre (mouse/touch) y rueda con inercia; curvatura "tela" según la velocidad (vuelve a plano al frenar).
 - Hover: escaneo verde → color, corchetes amarillos y caja de análisis (zona de la cabeza = `BOX` en
   `tools/build-archivo.py`; tipos rostro / espalda / objeto). Cursor tipo mira.
 - Clic/tap sin arrastre (< 6 px) abre el visor (en el evento `click`, no en `pointerup`). Arrastrar nunca abre.
 - Filtros: estática de "cambio de canal" y el muro se rearma con esa categoría.
-- Desktop: la rueda mueve el muro solo cuando el muro entra entero en pantalla; botón "↓ SEGUIR" para bajar.
+- Rueda (desktop): la rueda vertical **siempre** scrollea la página (nunca `preventDefault` en deltaY);
+  mientras el muro está en pantalla, además deriva solo con el scroll (~0.35 del recorrido).
+  El scroll horizontal del trackpad (deltaX) y Shift+rueda mueven el muro a los costados (ahí sí se
+  cancela el scroll). Arrastrar mueve libre en todas direcciones. "↓ SEGUIR" queda como atajo.
 - Táctil: vista previa quieta que no captura el scroll + "ENTRAR A LA SALA DE MONITOREO" → pantalla
   completa (`position:fixed`, `touch-action:none`, `history.pushState`; se sale con ✕ SALIR o el gesto atrás).
 - El rAF se apaga solo cuando no hay nada que mover; IntersectionObserver + `turno` con el fondo.

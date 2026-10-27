@@ -110,6 +110,77 @@ function note(x0,y0,x1,y1,lines,col,a){if(a<=0)return;cx.globalAlpha=a;
   lines.forEach((t,i)=>cx.fillText(t,x1+(x1<x0?-6:6),y1-6-(lines.length-1-i)*fs*1.05));
   cx.shadowBlur=0;cx.textAlign='left';cx.globalAlpha=1}
 function cross(x,y,s,col,lw=2){cx.strokeStyle=col;cx.lineWidth=lw;cx.beginPath();cx.moveTo(x-s,y);cx.lineTo(x+s,y);cx.moveTo(x,y-s);cx.lineTo(x,y+s);cx.stroke()}
+/* Anotaciones de la fase esfera.
+   Zonas prohibidas: los textos del inicio (warning, logo, subtítulo, "scrolleá") y el HUD de los bordes,
+   medidos con getBoundingClientRect. Cada anotación prueba posiciones alrededor del borde de la esfera
+   y usa la primera donde ni el texto ni los dos extremos de la línea punteada pisan una zona prohibida.
+   Por debajo de 820 px: solo 2 anotaciones, una arriba y otra abajo de la esfera.
+   Se calcula una vez por tamaño de pantalla (no en cada cuadro). */
+let sphereCache=null,heroK=1;
+const invalidateSphere=()=>{sphereCache=null};
+document.fonts&&document.fonts.ready.then(invalidateSphere);
+document.querySelector('#hero .logo').addEventListener('load',invalidateSphere);
+function forbiddenRects(){
+  const st=document.getElementById('stage').getBoundingClientRect(),out=[];
+  const K=1.08; // el hero crece hasta 1.08 mientras se desvanece: se reserva su tamaño máximo
+  document.querySelectorAll('#hero .warn,#hero .logo,#hero .sub,#hero .cue').forEach(el=>{const r=el.getBoundingClientRect();if(!r.width)return;
+    // unión del tamaño normal y el agrandado (al crecer, cada texto se corre desde el centro)
+    const f=(v,c,k)=>c+((v-c)/heroK)*k;const cxm=W/2,cym=H/2;
+    const xs=[1,K].flatMap(k=>[f(r.left-st.left,cxm,k),f(r.right-st.left,cxm,k)]),ys=[1,K].flatMap(k=>[f(r.top-st.top,cym,k),f(r.bottom-st.top,cym,k)]);
+    out.push({x0:Math.min(...xs)-10,y0:Math.min(...ys)-10,x1:Math.max(...xs)+10,y1:Math.max(...ys)+10})});
+  document.querySelectorAll('#stage .chrome,#rail').forEach(el=>{const r=el.getBoundingClientRect();if(!r.width||getComputedStyle(el).display==='none')return;
+    out.push({x0:r.left-st.left-8,y0:r.top-st.top-8,x1:r.right-st.left+8,y1:Math.max(r.bottom,r.top+60)-st.top+8})});
+  return out;
+}
+const hit=(a,b)=>a.x0<b.x1&&a.x1>b.x0&&a.y0<b.y1&&a.y1>b.y0;
+const inR=(x,y,r)=>x>r.x0&&x<r.x1&&y>r.y0&&y<r.y1;
+function sphereLayout(){
+  if(sphereCache&&sphereCache.W===W&&sphereCache.H===H)return sphereCache;
+  const A=W/H,R=.47*Math.min(A,1)*H,ox=W/2,oy=H/2,narrow=W<820;
+  const fs=Math.round(clamp(W/60,14,21));cx.font='700 '+fs+'px "Courier Prime", monospace';
+  const bad=forbiddenRects();
+  const DEFS=narrow?[
+    {lines:['WARNING:','DANGEROUSLY','CREATIVE'],col:AMB,ang:[-70,-110,-55,-125,-40,-140,-90]},
+    {lines:['search','required'],col:INK,ang:[70,110,55,125,40,140,90]},
+  ]:[
+    {lines:['unidentified','existence'],col:INK,ang:[205,195,215,225,185,235,245]},
+    {lines:['WARNING:','DANGEROUSLY','CREATIVE'],col:AMB,ang:[-55,-45,-65,-35,-75,-25,-85]},
+    {lines:['search','required'],col:INK,ang:[25,15,35,45,5,55,65]},
+  ];
+  const notes=[];
+  for(const d of DEFS){
+    const mw=Math.max(...d.lines.map(l=>cx.measureText(l).width)),th=fs*1.05*d.lines.length;
+    let found=null;
+    outer:for(const a of d.ang)for(const rr of [.9,1,.8,.7])for(const Lk of [.3,.5,.75,1.05,.18]){
+      const u=[Math.cos(a*Math.PI/180),Math.sin(a*Math.PI/180)];
+      const x0=ox+u[0]*R*rr,y0=oy+u[1]*R*rr,x1=ox+u[0]*(R*rr+R*Lk),y1=oy+u[1]*(R*rr+R*Lk);
+      const left=u[0]<-.15,below=u[1]>.5;
+      const bx0=left?x1-8-mw:x1+(u[0]>.15?8:-mw/2),bx1=bx0+mw+(left?0:0);
+      const by0=below?y1+6:y1-8-th,box={x0:bx0-4,y0:by0-4,x1:bx0+mw+4,y1:by0+th+6};
+      if(box.x0<10||box.x1>W-10||box.y0<10||box.y1>H-10)continue;
+      if(bad.some(r=>hit(box,r)||inR(x0,y0,r)||inR(x1,y1,r)))continue;
+      found={x0,y0,x1,y1,tx:bx0,ty:by0,lines:d.lines,col:d.col,fs};bad.push(box);break outer;
+    }
+    if(found)notes.push(found);
+  }
+  // decoración (cruces, corchetes, sol): solo las que no pisan textos ni anotaciones
+  const deco=[
+    {r:[ox-R*.62-14,oy+R*.05-14,28,28],draw:()=>cross(ox-R*.62,oy+R*.05,14,RED,3)},
+    {r:[ox-R*.82,oy-R*.12,R*.38,R*.42],draw:()=>corners(ox-R*.82,oy-R*.12,R*.38,R*.42,AMB,2,22)},
+    {r:[ox+R*.18,oy+R*.48,R*.22,R*.22],draw:()=>corners(ox+R*.18,oy+R*.48,R*.22,R*.22,AMB,3,18)},
+    {r:[ox+R*.44-11,oy-R*.02-11,22,22],draw:()=>sun(ox+R*.44,oy-R*.02,AMB)},
+    {r:[ox+R*.72-20,oy+R*.5-20,40,40],draw:()=>cross(ox+R*.72,oy+R*.5,20,AMB,1.5)},
+  ].filter(d=>{const b={x0:d.r[0],y0:d.r[1],x1:d.r[0]+d.r[2],y1:d.r[1]+d.r[3]};return !bad.some(r=>hit(b,r))});
+  sphereCache={W,H,notes,deco};return sphereCache;
+}
+// dibuja una anotación ya ubicada: línea punteada + puntos + texto (contorno oscuro en vez de sombra borrosa)
+function noteAt(n,a){if(a<=0)return;cx.globalAlpha=a;
+  cx.setLineDash([5,4]);cx.strokeStyle=n.col;cx.lineWidth=1.6;cx.beginPath();cx.moveTo(n.x0,n.y0);cx.lineTo(n.x1,n.y1);cx.stroke();cx.setLineDash([]);
+  cx.fillStyle=n.col;cx.beginPath();cx.arc(n.x0,n.y0,3.5,0,7);cx.fill();cx.beginPath();cx.arc(n.x1,n.y1,2.5,0,7);cx.fill();
+  cx.font='700 '+n.fs+'px "Courier Prime", monospace';cx.textBaseline='top';cx.lineJoin='round';
+  cx.strokeStyle='rgba(0,0,0,.85)';cx.lineWidth=4;
+  n.lines.forEach((t,i)=>{const y=n.ty+i*n.fs*1.05;cx.strokeText(t,n.tx,y);cx.fillText(t,n.tx,y)});
+  cx.textBaseline='alphabetic';cx.globalAlpha=1}
 function sun(x,y,col){cx.strokeStyle=col;cx.fillStyle=col;cx.lineWidth=1.5;cx.beginPath();cx.arc(x,y,4,0,7);cx.fill();for(let k=0;k<8;k++){const a=k*Math.PI/4;cx.beginPath();cx.moveTo(x+Math.cos(a)*7,y+Math.sin(a)*7);cx.lineTo(x+Math.cos(a)*11,y+Math.sin(a)*11);cx.stroke()}}
 
 /* ---------- consola ---------- */
@@ -186,14 +257,11 @@ function frame(now){
   const toS=(x,y)=>[(.5+(x-C[0])/S[0])*W,(.5+(y-C[1])/S[1])*H];
   const toS2=(x,y)=>[(.5+(x-C2[0])/S2[0])*W,(.5+(y-C2[1])/S2[1])*H];
 
-  // fase esfera: anotaciones fijas estilo referencia
+  // fase esfera: anotaciones que esquivan el logo y los textos del inicio (ver sphereLayout)
   const aA=1-seg(p,.05,.12);
-  if(aA>0){const R=.47*Math.min(A,1)*H;const ox=W/2,oy=H/2;
-    note(ox-R*.55,oy-R*.18,ox-R*.92,oy-R*.42,['unidentified','existence'],INK,aA);
-    note(ox+R*.42,oy-R*.42,ox+R*.62,oy-R*.78,['WARNING:','DANGEROUSLY','CREATIVE'],AMB,aA);
-    note(ox+R*.3,oy+R*.32,ox+R*.72,oy+R*.18,['search','required'],INK,aA);
-    cx.globalAlpha=aA;cross(ox-R*.62,oy+R*.05,14,RED,3);corners(ox-R*.82,oy-R*.12,R*.38,R*.42,AMB,2,22);
-    corners(ox+R*.18,oy+R*.48,R*.22,R*.22,AMB,3,18);sun(ox+R*.44,oy-R*.02,AMB);cross(ox+R*.72,oy+R*.5,20,AMB,1.5);cx.globalAlpha=1}
+  if(aA>0){const L=sphereLayout();
+    L.notes.forEach(n=>noteAt(n,aA));
+    cx.globalAlpha=aA;L.deco.forEach(d=>d.draw());cx.globalAlpha=1}
 
   // centro
   if(p<.42){const ca=seg(p,.12,.2)*(1-seg(p,.38,.42));if(ca>0){cx.globalAlpha=ca*.8;cross(W/2,H/2,16,AMB,1.5);cx.globalAlpha=1}}
@@ -264,7 +332,7 @@ function frame(now){
   }
 
   // ---------- DOM ----------
-  hero.style.opacity=1-seg(p,.02,.09);hero.style.transform='scale('+(1+seg(p,0,.09)*.08)+')';
+  hero.style.opacity=1-seg(p,.02,.09);heroK=1+seg(p,0,.09)*.08;hero.style.transform='scale('+heroK+')';
   const ek=seg(p,.66,.69)*(1-seg(p,.76,.78));enh.style.opacity=ek;const ep=Math.round(seg(p,.67,.765)*100);enhBar.style.width=ep+'%';enhLbl.textContent='RECONSTRUYENDO ROSTRO '+pad(Math.min(ep,99))+'%';
   cut.style.opacity=0;
   file.classList.toggle('on',p>.9);

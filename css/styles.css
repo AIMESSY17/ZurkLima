@@ -65,10 +65,10 @@ body{font-family:var(--f-ui);margin:0;overflow-x:hidden}
 
 /* hero */
 #hero{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2;pointer-events:none;text-align:center;padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px))}
-#hero .warn{font-family:var(--f-note);font-weight:700;color:var(--alert);font-size:clamp(13px,1.4vw,18px);letter-spacing:.08em;text-shadow:0 0 10px rgba(255,43,43,.55)}
+#hero .warn{position:relative;z-index:1;font-family:var(--f-note);font-weight:700;color:var(--alert);font-size:clamp(13px,1.4vw,18px);letter-spacing:.08em;text-shadow:0 0 10px rgba(255,43,43,.55);margin-bottom:clamp(14px,3.2svh,34px)}
 /* logo ZURKLIMA (SVG blanco) con el glow verde y la aberración roja/azul del título original */
 #hero{will-change:opacity,transform}
-#hero h1{margin:.4em 0 .5em;line-height:0}
+#hero h1{margin:0 0 .5em;line-height:0}
 #hero .logo{display:block;width:clamp(240px,40vw,600px);max-height:44svh;height:auto;filter:drop-shadow(4px 0 0 rgba(255,43,43,.55)) drop-shadow(-4px 0 0 rgba(60,140,255,.45)) drop-shadow(0 0 2px #fff) drop-shadow(0 0 22px rgba(140,255,90,.55))}
 #hero .sub{font-family:var(--f-digit);font-size:clamp(18px,2vw,26px);letter-spacing:.22em;color:var(--nv)}
 #hero .cue{margin-top:28px;font-family:var(--f-digit);font-size:20px;letter-spacing:.14em;color:var(--amber);animation:bob 1.6s ease-in-out infinite}
@@ -293,8 +293,9 @@ html.lock,html.lock body{overflow:hidden}
 .mh-load{left:50%;top:50%;transform:translate(-50%,-50%);color:var(--nv);font-size:22px!important;display:none}
 .muro.cargando .mh-load{display:block}
 .muro-entrar,.muro-salir{display:none;font-family:var(--f-digit);letter-spacing:.1em;cursor:pointer;border:2px solid var(--amber)}
-.muro-entrar{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2;background:var(--amber);color:#000;font-size:20px;padding:12px 16px;
-  box-shadow:4px 4px 0 var(--alert);white-space:nowrap;max-width:calc(100% - 32px)}
+/* centrado con left/right + margin auto (con left:50% el botón solo tenía medio ancho y se cortaba) */
+.muro-entrar{position:absolute;left:16px;right:16px;top:50%;margin-inline:auto;width:max-content;max-width:calc(100% - 32px);transform:translateY(-50%);
+  z-index:2;background:var(--amber);color:#000;font-size:20px;line-height:1.1;padding:12px 16px;box-shadow:4px 4px 0 var(--alert);white-space:normal;text-align:center}
 .muro-salir{position:absolute;z-index:2;top:calc(12px + env(safe-area-inset-top,0px));right:max(12px,env(safe-area-inset-right,0px));
   background:var(--void);color:var(--amber);font-size:20px;padding:8px 14px;min-height:44px}
 .muro-seguir{position:absolute;z-index:2;right:48px;bottom:14px;font-family:var(--f-digit);font-size:17px;letter-spacing:.12em;color:var(--amber);
@@ -330,6 +331,7 @@ html.lock-muro,html.lock-muro body{overflow:hidden;overscroll-behavior:none}
   .mh-tr{display:none}
   .muro-entrar{font-size:18px;padding:11px 12px}
 }
+@media (max-width:360px){.muro-entrar .me-larga{display:none}}
 
 /* sin WebGL: el fondo queda como imagen fija (fotograma congelado) y sin la animación por scroll */
 .sin-webgl #track{height:auto}
