@@ -221,11 +221,11 @@ function sun(x,y,col){cx.strokeStyle=col;cx.fillStyle=col;cx.lineWidth=1.5;cx.be
 /* ---------- consola ---------- */
 const LOG=[[0,'> cam07.connect("NQN-CENTRO") ... OK'],[.08,'> feed.mode = NVG / 40° FOV'],[.16,'> lens.unwarp() ... 3x3 → 1'],[.24,'> scan --faces --all'],[.34,'> 2.418 rostros indexados'],[.42,'> freeze --frame 0061'],[.47,'> lock target 0299'],[.55,'> threat.level = MUY ALTA'],[.62,'> zoom --follow 0299 --x3'],[.68,'> enhance --x8'],[.77,'> identity.lookup(db.NQN)'],[.84,'> match 99.7% → "BRUNO · ZURKLIMA"'],[.9,'> expediente.open(0299)']];
 const con=document.getElementById('console');let lastLog=-1;
-function setLog(p){let n=0;for(let i=0;i<LOG.length;i++)if(p>=LOG[i][0])n=i;if(n===lastLog)return;lastLog=n;con.textContent=LOG.slice(Math.max(0,n-3),n+1).map(l=>l[1]).join('\n')}
+function setLog(p){let n=0;for(let i=0;i<LOG.length;i++)if(p>=LOG[i][0])n=i;if(n===lastLog)return;lastLog=n;con.textContent=LOG.slice(Math.max(0,n-3),n+1).map(l=>l[1]).join('\n');if(innerWidth<820)placeSaltar()}
 
 /* ---------- loop ---------- */
 const track=document.getElementById('track'),hero=document.getElementById('hero'),enh=document.getElementById('enh'),enhBar=document.getElementById('enhBar'),enhLbl=document.getElementById('enhLbl'),cut=document.getElementById('cut'),file=document.getElementById('file'),stateEl=document.getElementById('state'),frRd=document.getElementById('frRd'),zoomRd=document.getElementById('zoomRd'),clock=document.getElementById('clock');
-const railEls=[...document.querySelectorAll('#rail span')];
+const railEls=[...document.querySelectorAll('#rail span')],saltar=document.getElementById('saltar');
 let pS=0,freezeImg=null,portraitImg=null,started=false,t0=performance.now();
 // anti-lag: el loop solo corre mientras el sticky está en pantalla
 let onScreen=true,running=false;
@@ -234,6 +234,11 @@ new IntersectionObserver(([e])=>{onScreen=e.isIntersecting;startLoop()},{rootMar
 turno.on(startLoop);
 function progress(){const r=track.getBoundingClientRect();const span=track.offsetHeight-innerHeight;return clamp(-r.top/span)}
 function pad(n){return String(n).padStart(2,'0')}
+// "SALTAR INTRO": en pantallas angostas, si pisa el reloj/consola de abajo, sube justo por encima
+function placeSaltar(){saltar.style.bottom='';if(innerWidth>=820)return;
+  const a=saltar.getBoundingClientRect(),b=document.querySelector('#stage .chrome.bl').getBoundingClientRect();
+  if(a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top)saltar.style.bottom=Math.round(innerHeight-b.top+10)+'px'}
+addEventListener('resize',placeSaltar);placeSaltar();document.fonts&&document.fonts.ready.then(placeSaltar);
 let lastHudKey='';
 const setText=(el,v)=>{if(el.__v!==v){el.__v=v;el.textContent=v}};
 const setStyle=(el,k,v)=>{const c=el.__s||(el.__s={});if(c[k]!==v){c[k]=v;el.style[k]=v}};
@@ -382,6 +387,7 @@ function frame(now){
   const ek=seg(p,.66,.69)*(1-seg(p,.76,.78));setStyle(enh,'opacity',String(ek));const ep=Math.round(seg(p,.67,.765)*100);
   if(ek>0){setStyle(enhBar,'width',ep+'%');setText(enhLbl,'RECONSTRUYENDO ROSTRO '+pad(Math.min(ep,99))+'%')}
   file.classList.toggle('on',p>.9);
+  saltar.classList.toggle('off',p>.9||pT>.9);
   let st='LIVE',al=false;if(p>=.24)st='SCANNING';if(frozen){st='FRAME FROZEN';}if(p>=.47){st='TARGET LOCKED';al=true}if(p>=.66){st='ENHANCE x8';al=false}if(p>=.79){st='IDENTIFYING';al=true}if(p>=.845){st='MATCH 99.7%';al=false}
   if(stateEl.textContent!==st){stateEl.textContent=st;stateEl.classList.toggle('alert',al)}
   setText(frRd,'FR '+String(fi+1).padStart(4,'0')+'/0108');setText(zoomRd,(p>.79?zp*1:zoom).toFixed(1));

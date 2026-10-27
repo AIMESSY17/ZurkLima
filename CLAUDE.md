@@ -19,6 +19,9 @@ corchetes amarillos, alertas rojas, anotaciones con líneas punteadas. Estilo tr
 | `--amber` | `#FFD23A` | corchetes, advertencias, botones |
 | `--alert` | `#FF2B2B` | lock, peligro, sellos |
 | `--ink` | `#F1F4EC` | texto de anotaciones |
+| `--paper` | `#ECEBE4` | hoja de la ficha técnica (papel claro) |
+| `--paper-ink` | `#0D0D0C` | texto y garabatos sobre el papel |
+| `--paper-line` | `rgba(13,13,12,.18)` | divisiones finas de la hoja |
 
 Usar siempre los tokens, no colores sueltos.
 
@@ -27,6 +30,7 @@ Usar siempre los tokens, no colores sueltos.
 - **Courier Prime** (`--f-note`): anotaciones.
 - **IBM Plex Mono** (`--f-ui`): interfaz.
 - **Logo ZURKLIMA** como display.
+- **Permanent Marker**: solo para los garabatos a mano de la ficha técnica.
 
 ## Idioma
 - Textos de la ficha y de la interfaz: **español**.
@@ -41,18 +45,22 @@ Usar siempre los tokens, no colores sueltos.
 - `js/muro.js` — MURO INFINITO del archivo (WebGL con OGL): una malla instanciada, sin nodos DOM por foto.
 - `js/vendor/ogl.min.js` — OGL 1.0.11 (Unlicense), solo las piezas que se usan.
 - `js/deteccion.js` — exporta `DET` (cajas de personas por fotograma).
-- `js/archivo.js` — ARCHIVO: elige muro o grilla, filtros, visor de detalle, anclas con scroll suave.
+- `js/archivo.js` — ARCHIVO: elige muro o grilla, filtros, abre la ficha técnica, anclas con scroll suave.
+- `js/ficha.js` — FICHA TÉCNICA de cada foto (hoja clara, cotas, puntos, pasos de análisis, links `#zk-014`).
+- `datos/fotos.json` — datos editables de cada foto (fuente de `js/archivo-data.js`).
 - `js/archivo-data.js` — lista de fotos (GENERADO, no editar a mano).
 - `frames/` fotogramas del timelapse (108, 1280 px) · `frames/m/` versión liviana para celular (54, 640 px,
   webp q45; se regenera con `python tools/build-frames-m.py`) · `img/` freeze, retrato y evidencias de la ficha.
 - `fotos/` — originales de Bruno (no se sirven directo, no tocar).
 - `img/archivo/atlas.webp` — las 21 fotos en una sola textura (celdas 448 px) para el muro.
-- `img/archivo/sm/` miniaturas 480 px webp (grilla de respaldo) · `img/archivo/lg/` 1800 px webp (solo en el visor).
+- `img/archivo/sm/` miniaturas 480 px webp (grilla de respaldo y tira de la ficha) · `img/archivo/lg/` 1800 px webp (solo en la ficha técnica).
 - `assets/` — logo SVG, favicon, `og.jpg` (imagen para compartir), PNG y video originales.
 - `referencias/` — imágenes de referencia de estilo (no se publican en la web).
 
 ## Secciones (en orden)
-1. Fondo `#track/#stage` (CAM 07 → ficha/expediente).
+1. Fondo `#track/#stage` (CAM 07 → ficha/expediente). Botón "SALTAR INTRO ↓" (abajo al centro; en celular
+   abajo a la derecha y, si pisa la consola, justo arriba): lleva a `#archivo` con scroll suave (directo con
+   "reducir movimiento") y se oculta cuando el progreso pasa 0.9. El link de teclado "Saltar al archivo" sigue.
 2. `#archivo` — "ARCHIVO // EVIDENCIA" + filtros TODO / RETRATOS / CALLE / EN VIVO + MURO INFINITO.
 3. `#contacto` — "REPORTAR AVISTAMIENTO": Instagram (DM `https://ig.me/m/yo.zur` y perfil).
 4. Pie — logo, "FIN DE TRANSMISIÓN", volver arriba.
@@ -68,7 +76,7 @@ Usar siempre los tokens, no colores sueltos.
 - Arrastre (mouse/touch) y rueda con inercia; curvatura "tela" según la velocidad (vuelve a plano al frenar).
 - Hover: escaneo verde → color, corchetes amarillos y caja de análisis (zona de la cabeza = `BOX` en
   `tools/build-archivo.py`; tipos rostro / espalda / objeto). Cursor tipo mira.
-- Clic/tap sin arrastre (< 6 px) abre el visor (en el evento `click`, no en `pointerup`). Arrastrar nunca abre.
+- Clic/tap sin arrastre (< 6 px) abre la ficha técnica (en el evento `click`, no en `pointerup`). Arrastrar nunca abre.
 - Filtros: estática de "cambio de canal" y el muro se rearma con esa categoría.
 - Rueda (desktop): la rueda vertical **siempre** scrollea la página (nunca `preventDefault` en deltaY);
   mientras el muro está en pantalla, además deriva solo con el scroll (~0.35 del recorrido).
@@ -78,8 +86,30 @@ Usar siempre los tokens, no colores sueltos.
   completa (`position:fixed`, `touch-action:none`, `history.pushState`; se sale con ✕ SALIR o el gesto atrás).
 - El rAF se apaga solo cuando no hay nada que mover; IntersectionObserver + `turno` con el fondo.
 - Respaldo: sin WebGL o con `prefers-reduced-motion` se muestra la grilla clásica. Con el muro activo,
-  la grilla queda como lista oculta accesible: Tab centra/analiza el monitor y Enter abre el visor;
-  "Saltar al archivo" abre el visor en la primera evidencia.
+  la grilla queda como lista oculta accesible: Tab centra/analiza el monitor y Enter abre la ficha;
+  "Saltar al archivo" abre la ficha de la primera evidencia.
+
+## Ficha técnica (`js/ficha.js`, `<dialog id="ficha">`)
+- Reemplaza al visor. Hoja clara (`--paper`) estilo hoja técnica de moda; es el único lugar donde la foto
+  se ve en color real. Fondo detrás: `--void` al 85 %, **sin** `backdrop-filter`.
+- Desktop: barra superior (100 %, íconos de etiqueta, "ZURKLIMA · ANÁLISIS DE EVIDENCIA", japonés
+  decorativo, bloque rojo, código) · izquierda: 2 recortes + "Visual Shape" · centro: foto grande con marco
+  rojo, cota LX01, cotas dx E01 / sx E02 / F02 / N01, puntos rojos en la cara (por proporción del `box`),
+  garabatos en Permanent Marker y código L0xx · derecha: tabla de datos + 4 pasos de análisis en canvas
+  (detección, rasgos, triangulación, extracción; "NO APLICA" donde no corresponde) · barra inferior: logo
+  en círculo, "Visualización técnica 014", código de barras generado, tira de la misma categoría, contador.
+- `tipo` espalda: puntos en la nuca y cota "SUJETO DE ESPALDAS — RASGOS NO DISPONIBLES".
+  `tipo` objeto: "OBJETO DE INTERÉS" con medidas del objeto en vez de puntos de cara.
+- Al abrir (< 1,2 s): el monitor vuela hasta la foto (FLIP), barrido verde → color, las cotas se dibujan
+  (`stroke-dashoffset`), los puntos aparecen en secuencia y los datos se escriben. Con "reducir movimiento":
+  directo, sin animación.
+- Navegación: ← →, ANT / SIG, swipe en celular, Esc y "CERRAR ✕". Precarga la foto grande anterior y siguiente.
+- Links: cada ficha es `#zk-014` (abrir la página con ese hash abre la ficha; al cerrar se limpia). El botón
+  atrás cierra la ficha (`history.pushState`); dentro de la sala del celular, el primer atrás cierra la
+  ficha y el segundo sale de la sala. Foco atrapado en el diálogo y al cerrar vuelve al monitor/botón.
+- Celular (< 820 px): una columna, cotas más simples, pasos con scroll horizontal, botones fijos abajo.
+- Anti-lag: con la ficha abierta `turno.ficha` frena el muro y el fondo (0 rAF). La foto grande se baja
+  solo al abrir. `html{scrollbar-gutter:stable}` evita que al bloquear el scroll se recalcule toda la página.
 
 ## Agregar o cambiar fotos del archivo
 Los datos de cada foto viven en **`datos/fotos.json`** (se edita a mano, sin tocar Python):
