@@ -300,7 +300,7 @@ export function initMuro({wrap, fotos, labels, onOpen}) {
   /* ---------- loop ---------- */
   const clampV = v => Math.max(-60, Math.min(60, v));
   function tick(now) {
-    if (!ready || !(visible || full)) { running = false; lastNow = 0; return; }
+    if (!ready || !(visible || full) || turno.ficha) { running = false; lastNow = 0; return; }
     const dt = lastNow ? Math.min(50, now - lastNow) : 16.7; lastNow = now;
     if (dt > 0 && dt < 100) {   // calidad adaptativa: si el promedio pasa de ~40 fps hacia abajo, bajar resolución
       ftAvg += (dt - ftAvg) * .05;
@@ -329,7 +329,8 @@ export function initMuro({wrap, fotos, labels, onOpen}) {
     if (moving || dragging || hAnim || statT0 >= 0) requestAnimationFrame(tick);
     else { running = false; lastNow = 0; }
   }
-  function wake() { if (!running && ready && (visible || full)) { running = true; requestAnimationFrame(tick); } }
+  function wake() { if (!running && ready && (visible || full) && !turno.ficha) { running = true; requestAnimationFrame(tick); } }
+  turno.on(() => { if (!turno.ficha) { ptr = null; wake(); } });
 
   function resize() {
     const r = wrap.getBoundingClientRect();
@@ -403,9 +404,10 @@ export function initMuro({wrap, fotos, labels, onOpen}) {
       if (performance.now() - down.lt < 90) { tgt.x -= down.vx * 260; tgt.y -= down.vy * 260; }   // inercia al soltar
     } else if (e.type === 'pointerup') {
       // clic/tap sin arrastre (< 6 px): se abre en el evento "click" que sigue, así ese click
-      // no cae sobre el visor recién abierto (en táctil lo cerraría al instante)
-      const p = local(e), hit = hitTest(p.x, p.y);
-      tap = hit ? hit.t.p : null;
+      // no cae sobre la ficha recién abierta (en táctil la cerraría al instante)
+      const p = local(e), hit = hitTest(p.x, p.y), r = cv.getBoundingClientRect();
+      // foto + rectángulo del monitor en pantalla (la ficha técnica vuela desde ahí)
+      tap = hit ? {p: hit.t.p, rect: {left: r.left + hit.sx, top: r.top + hit.sy, width: hit.w, height: hit.h}} : null;
     }
     down = null; dragging = false; wrap.classList.remove('drag'); wake();
   };
@@ -450,16 +452,17 @@ export function initMuro({wrap, fotos, labels, onOpen}) {
   entrar.addEventListener('click', enterFull);
   cv.addEventListener('click', () => {
     if (touchMode && !full) { enterFull(); return; }
-    if (tap !== null) { const p = tap; tap = null; onOpen(p); }
+    if (tap !== null) { const t = tap; tap = null; onOpen(t.p, t.rect); }
   });
   salir.addEventListener('click', () => exitFull(false));
+  // atrás: si la entrada actual sigue siendo la sala (p. ej. se cerró una ficha abierta encima), seguir adentro
   addEventListener('popstate', () => {
-    if (!full) return;
-    const d = document.getElementById('visor'); if (d && d.open) d.close();
+    if (!full || (history.state && history.state.muro)) return;
+    if (history.state && history.state.ficha) return;
     exitFull(true);
   });
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && full && !document.getElementById('visor')?.open) exitFull(false);
+    if (e.key === 'Escape' && full && !document.getElementById('ficha')?.open) exitFull(false);
   });
 
   /* ---------- teclado: centrar el monitor de la foto enfocada ---------- */

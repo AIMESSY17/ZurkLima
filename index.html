@@ -15,7 +15,7 @@
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Courier+Prime:wght@400;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Courier+Prime:wght@400;700&family=IBM+Plex+Mono:wght@400;600&family=Permanent+Marker&display=swap">
   <link rel="stylesheet" href="css/styles.css">
   <script type="module" src="js/inicio.js"></script>
   <script type="module" src="js/archivo.js"></script>
@@ -151,23 +151,78 @@
     <a class="pie-up" href="#top">VOLVER A CAM 07 ↑</a>
   </footer>
 
-  <dialog id="visor" aria-label="Visor de evidencia">
-    <div class="v-top">
-      <span id="vId">EVIDENCIA</span>
-      <button type="button" class="v-x" id="vClose" aria-label="Cerrar">CERRAR ✕</button>
-    </div>
-    <figure class="v-fig">
-      <div class="v-frame">
-        <img id="vImg" alt="">
-        <i class="v-scan" aria-hidden="true"></i>
-        <span class="v-load" id="vLoad">DESCARGANDO EVIDENCIA…</span>
+  <!-- FICHA TÉCNICA de cada evidencia (la arma js/ficha.js). Hoja clara estilo hoja técnica de moda. -->
+  <dialog id="ficha" class="ficha" aria-labelledby="fTitulo">
+    <div class="hoja">
+      <header class="h-top">
+        <span class="h-pct">100%</span>
+        <span class="h-icons" aria-hidden="true">
+          <svg viewBox="0 0 26 20"><path d="M2 4h22l-3 13H5z" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M3 7c3-2 5 2 8 0s5 2 8 0 4 1 4 1" fill="none" stroke="currentColor" stroke-width="1.1"/><text x="13" y="15" font-size="6" text-anchor="middle" fill="currentColor">30</text></svg>
+          <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="1.4"/><text x="10" y="13.5" font-size="9" text-anchor="middle" fill="currentColor">W</text></svg>
+          <svg viewBox="0 0 22 20"><path d="M11 2l9 16H2z" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M4 3l14 15M18 3L4 18" stroke="currentColor" stroke-width="1.1"/></svg>
+          <svg viewBox="0 0 26 20"><path d="M3 16h20c0-6-3-10-9-10H8" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="11" cy="12" r="1.1" fill="currentColor"/><circle cx="15" cy="12" r="1.1" fill="currentColor"/></svg>
+          <svg viewBox="0 0 20 20"><rect x="2" y="2" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="10" cy="10" r="5.5" fill="none" stroke="currentColor" stroke-width="1.1"/></svg>
+        </span>
+        <span class="h-brand">ZURKLIMA · ANÁLISIS DE EVIDENCIA</span>
+        <span class="h-jp" lang="ja" aria-hidden="true">写真分析 / 証拠記録</span>
+        <i class="h-red" aria-hidden="true"></i>
+        <span class="h-code" id="fCode">ZK-000</span>
+        <button type="button" class="h-x" id="fClose">CERRAR ✕</button>
+      </header>
+
+      <div class="h-body">
+        <aside class="h-left" aria-hidden="true">
+          <div class="h-k">SHAPE ANALYSIS</div>
+          <div class="crop c1"><span class="m">A01</span><canvas id="fCrop1"></canvas><b>01</b></div>
+          <div class="crop c2"><span class="m">B02</span><canvas id="fCrop2"></canvas><b>02</b></div>
+          <span class="vs">Visual Shape</span>
+        </aside>
+
+        <figure class="h-photo" id="fPhoto">
+          <div class="ph" id="fPh">
+            <img id="fImg" alt="" decoding="async">
+            <svg class="ph-svg" id="fSvg" aria-hidden="true"></svg>
+            <span class="ph-load" id="fLoad">DESCARGANDO EVIDENCIA…</span>
+          </div>
+          <figcaption class="sr" id="fAlt"></figcaption>
+        </figure>
+
+        <section class="h-right">
+          <div class="h-k">FICHA DE EVIDENCIA</div>
+          <h2 id="fTitulo">—</h2>
+          <dl class="h-data" id="fData">
+            <dt>CÓDIGO</dt><dd data-k="codigo"></dd>
+            <dt>TÍTULO</dt><dd data-k="titulo"></dd>
+            <dt>FECHA</dt><dd data-k="fecha"></dd>
+            <dt>HORA</dt><dd data-k="hora"></dd>
+            <dt>LUGAR</dt><dd data-k="lugar"></dd>
+            <dt>FOTO</dt><dd data-k="foto"></dd>
+            <dt>CATEGORÍA</dt><dd data-k="cat"></dd>
+            <dt>CÁMARA</dt><dd data-k="cam"></dd>
+          </dl>
+          <div class="h-k">PROCESO DE ANÁLISIS</div>
+          <div class="pasos" id="fPasos" aria-hidden="true">
+            <figure class="paso"><canvas></canvas><figcaption>01 DETECCIÓN</figcaption></figure>
+            <figure class="paso"><canvas></canvas><figcaption>02 RASGOS</figcaption></figure>
+            <figure class="paso"><canvas></canvas><figcaption>03 TRIANGULACIÓN</figcaption></figure>
+            <figure class="paso"><canvas></canvas><figcaption>04 EXTRACCIÓN</figcaption></figure>
+          </div>
+        </section>
       </div>
-      <figcaption id="vCap"></figcaption>
-    </figure>
-    <div class="v-nav">
-      <button type="button" id="vPrev" aria-label="Evidencia anterior">◀ ANT</button>
-      <span class="v-meta" id="vMeta"></span>
-      <button type="button" id="vNext" aria-label="Evidencia siguiente">SIG ▶</button>
+
+      <footer class="h-bot">
+        <span class="h-logo" aria-hidden="true"><img src="assets/logo-zurklima.svg" alt="" width="1080" height="700"></span>
+        <span class="h-vt"><b id="fVt">Visualización técnica 000</b><small>ZURKLIMA · NEUQUÉN · AR</small></span>
+        <span class="h-bar" aria-hidden="true"><svg id="fBar"></svg></span>
+        <nav class="h-thumbs" id="fThumbs" aria-label="Otras evidencias de la misma categoría"></nav>
+        <span class="h-count" id="fCount">00 / 00</span>
+        <span class="h-nav">
+          <button type="button" id="fPrev" aria-label="Evidencia anterior">◀ ANT</button>
+          <button type="button" class="h-x2" id="fClose2">CERRAR ✕</button>
+          <button type="button" id="fNext" aria-label="Evidencia siguiente">SIG ▶</button>
+        </span>
+      </footer>
+      <div class="f-fly" id="fFly" aria-hidden="true"><canvas></canvas><i class="f-scan"></i></div>
     </div>
   </dialog>
 </body>
