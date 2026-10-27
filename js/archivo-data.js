@@ -1,150 +1,23 @@
 /* Generado por tools/build-archivo.py — no editar a mano */
-export const FOTOS = [
- {
-  "id": "zk-01",
-  "w": 858,
-  "h": 1072,
-  "cat": "retratos",
-  "alt": "Sujeto con gorro y campera roja frente a una computadora en un estudio oscuro"
- },
- {
-  "id": "zk-02",
-  "w": 1616,
-  "h": 1080,
-  "cat": "retratos",
-  "alt": "Sujeto con pasamontañas y buzo ZURKLIMA frente a una persiana azul"
- },
- {
-  "id": "zk-03",
-  "w": 1616,
-  "h": 1080,
-  "cat": "retratos",
-  "alt": "Sujeto con pasamontañas señalando a cámara"
- },
- {
-  "id": "zk-04",
-  "w": 1616,
-  "h": 1080,
-  "cat": "calle",
-  "alt": "Cassette Sony ZX60 bajo luz cálida"
- },
- {
-  "id": "zk-05",
-  "w": 1080,
-  "h": 1616,
-  "cat": "retratos",
-  "alt": "Espalda con tatuaje en la nuca y buzo negro"
- },
- {
-  "id": "zk-06",
-  "w": 1080,
-  "h": 1616,
-  "cat": "calle",
-  "alt": "Persona en un parque mostrando la espalda de su buzo"
- },
- {
-  "id": "zk-07",
-  "w": 1616,
-  "h": 1080,
-  "cat": "calle",
-  "alt": "Sombras de manos proyectadas sobre una pared azul"
- },
- {
-  "id": "zk-08",
-  "w": 1080,
-  "h": 1616,
-  "cat": "retratos",
-  "alt": "Retrato de perfil con tatuajes en la cara y el cuello"
- },
- {
-  "id": "zk-09",
-  "w": 1200,
-  "h": 1800,
-  "cat": "calle",
-  "alt": "Chica con anteojos de sol entre taxis amarillos"
- },
- {
-  "id": "zk-10",
-  "w": 1200,
-  "h": 1800,
-  "cat": "calle",
-  "alt": "Retrato en blanco y negro con capucha frente a un edificio"
- },
- {
-  "id": "zk-11",
-  "w": 1080,
-  "h": 1440,
-  "cat": "calle",
-  "alt": "Espalda de buzo con estampa, al aire libre"
- },
- {
-  "id": "zk-12",
-  "w": 1080,
-  "h": 1439,
-  "cat": "retratos",
-  "alt": "Nuca con tatuaje en primer plano"
- },
- {
-  "id": "zk-13",
-  "w": 1080,
-  "h": 1080,
-  "cat": "calle",
-  "alt": "Persona caminando de noche junto a una estación de servicio"
- },
- {
-  "id": "zk-14",
-  "w": 1080,
-  "h": 1080,
-  "cat": "calle",
-  "alt": "Encapuchado fumando en una estación de servicio de noche"
- },
- {
-  "id": "zk-15",
-  "w": 1080,
-  "h": 1080,
-  "cat": "calle",
-  "alt": "Chica apoyada en una vidriera mirando a cámara"
- },
- {
-  "id": "zk-16",
-  "w": 1080,
-  "h": 1440,
-  "cat": "retratos",
-  "alt": "Sujeto con gorra en un taller"
- },
- {
-  "id": "zk-17",
-  "w": 1080,
-  "h": 1440,
-  "cat": "retratos",
-  "alt": "Sujeto detrás de una reja en un taller"
- },
- {
-  "id": "zk-18",
-  "w": 1080,
-  "h": 1440,
-  "cat": "calle",
-  "alt": "Dos chicos con gorra al atardecer frente al lago"
- },
- {
-  "id": "zk-19",
-  "w": 1080,
-  "h": 1072,
-  "cat": "en-vivo",
-  "alt": "Cantante con gorra blanca y micrófono en un show"
- },
- {
-  "id": "zk-20",
-  "w": 1080,
-  "h": 1080,
-  "cat": "en-vivo",
-  "alt": "Rapero con gorra y camiseta verde rapeando en vivo"
- },
- {
-  "id": "zk-21",
-  "w": 1080,
-  "h": 1080,
-  "cat": "retratos",
-  "alt": "Retrato nocturno de un hombre con anteojos bajo luz de calle"
- }
-];
+export const ATLAS = {"src": "img/archivo/atlas.webp", "w": 3136, "h": 1344};
+export const FOTOS = [{"id": "zk-01", "w": 858, "h": 1072, "cat": "retratos", "alt": "Sujeto con gorro y campera roja frente a una computadora en un estudio oscuro", "tipo": "rostro", "box": [0.14, 0.33, 0.42, 0.56], "uv": [0.01403, 0.0, 0.12851, 0.33333]},
+ {"id": "zk-02", "w": 1616, "h": 1080, "cat": "retratos", "alt": "Sujeto con pasamontañas y buzo ZURKLIMA frente a una persiana azul", "tipo": "rostro", "box": [0.4, 0.04, 0.6, 0.46], "uv": [0.14286, 0.05506, 0.28571, 0.27753]},
+ {"id": "zk-03", "w": 1616, "h": 1080, "cat": "retratos", "alt": "Sujeto con pasamontañas señalando a cámara", "tipo": "rostro", "box": [0.44, 0.0, 0.64, 0.36], "uv": [0.28571, 0.05506, 0.42857, 0.27753]},
+ {"id": "zk-04", "w": 1616, "h": 1080, "cat": "calle", "alt": "Cassette Sony ZX60 bajo luz cálida", "tipo": "objeto", "box": [0.55, 0.15, 0.85, 0.42], "uv": [0.42857, 0.05506, 0.57143, 0.27753]},
+ {"id": "zk-05", "w": 1080, "h": 1616, "cat": "retratos", "alt": "Espalda con tatuaje en la nuca y buzo negro", "tipo": "espalda", "box": [0.18, 0.0, 0.66, 0.38], "uv": [0.59503, 0.0, 0.69037, 0.33333]},
+ {"id": "zk-06", "w": 1080, "h": 1616, "cat": "calle", "alt": "Persona en un parque mostrando la espalda de su buzo", "tipo": "espalda", "box": [0.48, 0.0, 0.78, 0.2], "uv": [0.73788, 0.0, 0.83323, 0.33333]},
+ {"id": "zk-07", "w": 1616, "h": 1080, "cat": "calle", "alt": "Sombras de manos proyectadas sobre una pared azul", "tipo": "objeto", "box": [0.55, 0.25, 0.8, 0.55], "uv": [0.85714, 0.05506, 1.0, 0.27753]},
+ {"id": "zk-08", "w": 1080, "h": 1616, "cat": "retratos", "alt": "Retrato de perfil con tatuajes en la cara y el cuello", "tipo": "rostro", "box": [0.22, 0.08, 0.76, 0.58], "uv": [0.0236, 0.33333, 0.11894, 0.66667]},
+ {"id": "zk-09", "w": 1200, "h": 1800, "cat": "calle", "alt": "Chica con anteojos de sol entre taxis amarillos", "tipo": "rostro", "box": [0.38, 0.4, 0.6, 0.56], "uv": [0.16645, 0.33333, 0.2618, 0.66667]},
+ {"id": "zk-10", "w": 1200, "h": 1800, "cat": "calle", "alt": "Retrato en blanco y negro con capucha frente a un edificio", "tipo": "rostro", "box": [0.4, 0.28, 0.62, 0.44], "uv": [0.30931, 0.33333, 0.40466, 0.66667]},
+ {"id": "zk-11", "w": 1080, "h": 1440, "cat": "calle", "alt": "Espalda de buzo con estampa, al aire libre", "tipo": "espalda", "box": [0.32, 0.0, 0.64, 0.32], "uv": [0.44643, 0.33333, 0.55357, 0.66667]},
+ {"id": "zk-12", "w": 1080, "h": 1439, "cat": "retratos", "alt": "Nuca con tatuaje en primer plano", "tipo": "espalda", "box": [0.3, 0.05, 0.85, 0.6], "uv": [0.58929, 0.33333, 0.69643, 0.66667]},
+ {"id": "zk-13", "w": 1080, "h": 1080, "cat": "calle", "alt": "Persona caminando de noche junto a una estación de servicio", "tipo": "espalda", "box": [0.4, 0.02, 0.6, 0.22], "uv": [0.71429, 0.33333, 0.85714, 0.66667]},
+ {"id": "zk-14", "w": 1080, "h": 1080, "cat": "calle", "alt": "Encapuchado fumando en una estación de servicio de noche", "tipo": "rostro", "box": [0.36, 0.08, 0.64, 0.4], "uv": [0.85714, 0.33333, 1.0, 0.66667]},
+ {"id": "zk-15", "w": 1080, "h": 1080, "cat": "calle", "alt": "Chica apoyada en una vidriera mirando a cámara", "tipo": "rostro", "box": [0.42, 0.08, 0.62, 0.32], "uv": [0.0, 0.66667, 0.14286, 1.0]},
+ {"id": "zk-16", "w": 1080, "h": 1440, "cat": "retratos", "alt": "Sujeto con gorra en un taller", "tipo": "rostro", "box": [0.34, 0.36, 0.58, 0.6], "uv": [0.16071, 0.66667, 0.26786, 1.0]},
+ {"id": "zk-17", "w": 1080, "h": 1440, "cat": "retratos", "alt": "Sujeto detrás de una reja en un taller", "tipo": "rostro", "box": [0.38, 0.27, 0.62, 0.5], "uv": [0.30357, 0.66667, 0.41071, 1.0]},
+ {"id": "zk-18", "w": 1080, "h": 1440, "cat": "calle", "alt": "Dos chicos con gorra al atardecer frente al lago", "tipo": "rostro", "box": [0.22, 0.36, 0.48, 0.58], "uv": [0.44643, 0.66667, 0.55357, 1.0]},
+ {"id": "zk-19", "w": 1080, "h": 1072, "cat": "en-vivo", "alt": "Cantante con gorra blanca y micrófono en un show", "tipo": "rostro", "box": [0.35, 0.15, 0.6, 0.42], "uv": [0.57143, 0.66741, 0.71429, 0.99851]},
+ {"id": "zk-20", "w": 1080, "h": 1080, "cat": "en-vivo", "alt": "Rapero con gorra y camiseta verde rapeando en vivo", "tipo": "rostro", "box": [0.38, 0.1, 0.6, 0.38], "uv": [0.71429, 0.66667, 0.85714, 1.0]},
+ {"id": "zk-21", "w": 1080, "h": 1080, "cat": "retratos", "alt": "Retrato nocturno de un hombre con anteojos bajo luz de calle", "tipo": "rostro", "box": [0.32, 0.1, 0.82, 0.68], "uv": [0.85714, 0.66667, 1.0, 1.0]}];

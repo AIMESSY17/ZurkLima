@@ -35,27 +35,49 @@ Usar siempre los tokens, no colores sueltos.
 ## Estructura
 - `index.html` — solo estructura.
 - `css/styles.css` — estilos.
+- `js/inicio.js` — arranque: si hay WebGL carga `js/fondo.js`; si no, deja el fotograma congelado fijo.
 - `js/fondo.js` — fondo WebGL manejado por scroll, HUD, consola (módulo ES).
+- `js/turno.js` — turno de WebGL: el muro y el fondo nunca animan a la vez (el muro tiene prioridad).
+- `js/muro.js` — MURO INFINITO del archivo (WebGL con OGL): una malla instanciada, sin nodos DOM por foto.
+- `js/vendor/ogl.min.js` — OGL 1.0.11 (Unlicense), solo las piezas que se usan.
 - `js/deteccion.js` — exporta `DET` (cajas de personas por fotograma).
-- `js/archivo.js` — ARCHIVO (galería): grilla, filtros, visor de detalle, anclas con scroll suave.
+- `js/archivo.js` — ARCHIVO: elige muro o grilla, filtros, visor de detalle, anclas con scroll suave.
 - `js/archivo-data.js` — lista de fotos (GENERADO, no editar a mano).
 - `frames/` fotogramas del timelapse · `img/` freeze, retrato y evidencias de la ficha.
 - `fotos/` — originales de Bruno (no se sirven directo, no tocar).
-- `img/archivo/sm/` miniaturas 480 px webp (grilla) · `img/archivo/lg/` 1800 px webp (solo en el visor).
+- `img/archivo/atlas.webp` — las 21 fotos en una sola textura (celdas 448 px) para el muro.
+- `img/archivo/sm/` miniaturas 480 px webp (grilla de respaldo) · `img/archivo/lg/` 1800 px webp (solo en el visor).
 - `assets/` — logo SVG, favicon, `og.jpg` (imagen para compartir), PNG y video originales.
 - `referencias/` — imágenes de referencia de estilo (no se publican en la web).
 
 ## Secciones (en orden)
 1. Fondo `#track/#stage` (CAM 07 → ficha/expediente).
-2. `#archivo` — "ARCHIVO // EVIDENCIA": fotos en verde visión nocturna, a color al pasar el mouse
-   o en el visor. Filtros: TODO / RETRATOS / CALLE / EN VIVO.
+2. `#archivo` — "ARCHIVO // EVIDENCIA" + filtros TODO / RETRATOS / CALLE / EN VIVO + MURO INFINITO.
 3. `#contacto` — "REPORTAR AVISTAMIENTO": Instagram (DM `https://ig.me/m/yo.zur` y perfil).
 4. Pie — logo, "FIN DE TRANSMISIÓN", volver arriba.
 
+## Muro infinito (`js/muro.js`)
+- Columnas de anchos/alturas variadas que se repiten con módulo en las dos direcciones (nunca se termina).
+  Las posiciones se calculan en JS y van como atributos instanciados; nada de layout del DOM por frame.
+- Arrastre (mouse/touch) y rueda con inercia; curvatura "tela" según la velocidad (vuelve a plano al frenar).
+- Hover: escaneo verde → color, corchetes amarillos y caja de análisis (zona de la cabeza = `BOX` en
+  `tools/build-archivo.py`; tipos rostro / espalda / objeto). Cursor tipo mira.
+- Clic/tap sin arrastre (< 6 px) abre el visor (en el evento `click`, no en `pointerup`). Arrastrar nunca abre.
+- Filtros: estática de "cambio de canal" y el muro se rearma con esa categoría.
+- Desktop: la rueda mueve el muro solo cuando el muro entra entero en pantalla; botón "↓ SEGUIR" para bajar.
+- Táctil: vista previa quieta que no captura el scroll + "ENTRAR A LA SALA DE MONITOREO" → pantalla
+  completa (`position:fixed`, `touch-action:none`, `history.pushState`; se sale con ✕ SALIR o el gesto atrás).
+- El rAF se apaga solo cuando no hay nada que mover; IntersectionObserver + `turno` con el fondo.
+- Respaldo: sin WebGL o con `prefers-reduced-motion` se muestra la grilla clásica. Con el muro activo,
+  la grilla queda como lista oculta accesible: Tab centra/analiza el monitor y Enter abre el visor;
+  "Saltar al archivo" abre el visor en la primera evidencia.
+
 ## Agregar o cambiar fotos del archivo
 1. Copiar la foto a `fotos/` como `zk-XX.jpg|webp`.
-2. Agregar su categoría y texto alternativo en `INFO` dentro de `tools/build-archivo.py`.
-3. `python tools/build-archivo.py` (necesita Pillow) → regenera miniaturas, grandes y `js/archivo-data.js`.
+2. Agregar su categoría y texto alternativo en `INFO`, y la zona de la cabeza + tipo en `BOX`,
+   dentro de `tools/build-archivo.py`.
+3. `python tools/build-archivo.py` (necesita Pillow) → regenera miniaturas, grandes, atlas y `js/archivo-data.js`.
+   (El atlas tiene 7 columnas de 448 px: con más de 63 fotos habría que agrandarlo.)
 
 ## Publicar
 Es un sitio estático: subir la carpeta tal cual (Netlify, Cloudflare Pages, GitHub Pages, Vercel).

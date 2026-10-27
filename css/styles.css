@@ -265,3 +265,75 @@ html.lock,html.lock body{overflow:hidden}
 }
 
 [tabindex="-1"]:focus{outline:none}
+
+/* ======================================================================
+   MURO INFINITO (archivo con WebGL). El HUD es DOM quieto: nada se mueve
+   por encima del muro (sin blur, sin grano animado).
+   ====================================================================== */
+.muro{position:relative;height:min(calc(100svh - 110px),900px);min-height:440px;overflow:hidden;background:var(--void);
+  margin:0 calc(-1 * max(16px,env(safe-area-inset-right,0px))) 0 calc(-1 * max(16px,env(safe-area-inset-left,0px)));
+  border-block:1px solid rgba(255,210,58,.3);user-select:none;-webkit-user-select:none;touch-action:pan-y}
+.muro[hidden]{display:none}
+.muro canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.muro-gl{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Cg fill='none' stroke='%23FFD23A' stroke-width='2'%3E%3Cpath d='M16 2v9M16 21v9M2 16h9M21 16h9'/%3E%3Cpath d='M5 9V5h4M23 5h4v4M27 23v4h-4M9 27H5v-4' stroke-width='1.5'/%3E%3C/g%3E%3Ccircle cx='16' cy='16' r='1.6' fill='%23FF2B2B'/%3E%3C/svg%3E") 16 16,crosshair}
+.muro.drag .muro-gl{cursor:grabbing}
+.muro-fx{pointer-events:none}
+.muro.kbd{outline:2px solid var(--nv);outline-offset:-2px}
+.muro-hud{position:absolute;inset:0;pointer-events:none;font-family:var(--f-digit);letter-spacing:.1em;color:var(--ink);text-shadow:0 0 4px #000,0 0 2px #000}
+.muro-hud::before,.muro-hud::after{content:"";position:absolute;width:26px;height:26px;border:2px solid var(--amber)}
+.muro-hud::before{top:12px;left:12px;border-right:0;border-bottom:0}
+.muro-hud::after{bottom:12px;right:12px;border-left:0;border-top:0}
+.muro-hud span{position:absolute;font-size:17px;background:rgba(3,6,3,.72);padding:3px 7px 2px}
+.mh-tl{top:18px;left:46px}
+.mh-tl b{font-weight:400;color:var(--amber)}
+.mh-tr{top:18px;right:18px;color:var(--nv)}
+.mh-tr i{font-style:normal;color:var(--alert)}
+.mh-bl{bottom:18px;left:18px;color:rgba(241,244,236,.8);font-size:15px!important}
+.mh-full{display:none}
+.mh-load{left:50%;top:50%;transform:translate(-50%,-50%);color:var(--nv);font-size:22px!important;display:none}
+.muro.cargando .mh-load{display:block}
+.muro-entrar,.muro-salir{display:none;font-family:var(--f-digit);letter-spacing:.1em;cursor:pointer;border:2px solid var(--amber)}
+.muro-entrar{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2;background:var(--amber);color:#000;font-size:20px;padding:12px 16px;
+  box-shadow:4px 4px 0 var(--alert);white-space:nowrap;max-width:calc(100% - 32px)}
+.muro-salir{position:absolute;z-index:2;top:calc(12px + env(safe-area-inset-top,0px));right:max(12px,env(safe-area-inset-right,0px));
+  background:var(--void);color:var(--amber);font-size:20px;padding:8px 14px;min-height:44px}
+.muro-seguir{position:absolute;z-index:2;right:48px;bottom:14px;font-family:var(--f-digit);font-size:17px;letter-spacing:.12em;color:var(--amber);
+  text-decoration:none;background:rgba(3,6,3,.72);padding:6px 10px;border:1px solid rgba(255,210,58,.5)}
+.muro-seguir:hover{background:var(--amber);color:#000}
+.muro-entrar:focus-visible,.muro-salir:focus-visible,.muro-seguir:focus-visible{outline:2px solid var(--nv);outline-offset:3px}
+
+/* celular / pantallas táctiles: vista previa quieta que NO captura el scroll de la página */
+.muro.touch{height:min(62svh,560px);min-height:360px}
+.muro.touch .muro-gl{cursor:pointer}
+.muro.touch .muro-entrar{display:block}
+.muro.touch .mh-desk,.muro.touch .muro-seguir{display:none}
+.muro.touch:not(.full)::after{content:"";position:absolute;inset:0;background:rgba(3,6,3,.35);pointer-events:none}
+.muro.cargando .muro-entrar{display:none}
+/* sala a pantalla completa */
+.muro.full{position:fixed;inset:0;z-index:40;height:auto;min-height:0;margin:0;border:0;touch-action:none;overscroll-behavior:contain}
+.muro.full .muro-gl{touch-action:none;cursor:grab}
+.muro.full .muro-entrar{display:none}
+.muro.full .muro-salir{display:block}
+.muro.full .mh-full{display:block}
+.muro.full .mh-tl{top:calc(18px + env(safe-area-inset-top,0px))}
+.muro.full .mh-tr{display:none}
+html.lock-muro,html.lock-muro body{overflow:hidden;overscroll-behavior:none}
+
+/* con el muro activo, la grilla queda como lista accesible (oculta a la vista, enfocable con Tab) */
+.muro-on .grid{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;margin:0;padding:0}
+.muro-on .ev-card{opacity:1;transform:none;transition:none}
+.muro-on .a-head{margin-bottom:16px}
+
+@media (max-width:520px){
+  .muro-hud span{font-size:14px}
+  .mh-tl{left:40px}
+  .mh-tr{display:none}
+  .muro-entrar{font-size:18px;padding:11px 12px}
+}
+
+/* sin WebGL: el fondo queda como imagen fija (fotograma congelado) y sin la animación por scroll */
+.sin-webgl #track{height:auto}
+.sin-webgl #stage{position:relative;background:var(--void) url(../img/freeze.webp) center/cover no-repeat}
+.sin-webgl #stage::after{content:"";position:absolute;inset:0;background:rgba(3,6,3,.55)}
+.sin-webgl #hero{z-index:3}
+.sin-webgl #file,.sin-webgl #enh,.sin-webgl #rail,.sin-webgl #hud,.sin-webgl #gl{display:none}

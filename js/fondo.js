@@ -1,4 +1,5 @@
 import {DET} from './deteccion.js';
+import {turno} from './turno.js';
 
 const N=108, FREEZE=60, SUBJ=[0.589,0.727,0.641,0.975];
 const VA=16/9, PA=1616/1080;
@@ -122,13 +123,15 @@ const railEls=[...document.querySelectorAll('#rail span')];
 let pS=0,freezeImg=null,portraitImg=null,started=false,t0=performance.now();
 // anti-lag: el loop solo corre mientras el sticky está en pantalla
 let onScreen=true,running=false;
-function startLoop(){if(started&&onScreen&&!running){running=true;lastNow=0;requestAnimationFrame(frame)}}
+function startLoop(){if(started&&onScreen&&!turno.muro&&!running){running=true;lastNow=0;requestAnimationFrame(frame)}}
 new IntersectionObserver(([e])=>{onScreen=e.isIntersecting;startLoop()},{rootMargin:'-2px 0px'}).observe(document.getElementById('stage'));
+turno.on(startLoop);
 function progress(){const r=track.getBoundingClientRect();const span=track.offsetHeight-innerHeight;return clamp(-r.top/span)}
 function pad(n){return String(n).padStart(2,'0')}
 
 function frame(now){
-  if(!onScreen){running=false;return}
+  // turno: si el muro del archivo está en pantalla, el fondo no anima (nunca dos WebGL a la vez)
+  if(!onScreen||turno.muro){running=false;return}
   requestAnimationFrame(frame);
   const t=(now-t0)/1000;
   const dt=now-lastNow;lastNow=now;
