@@ -84,8 +84,10 @@ function setFrame(img){if(!img||img===curTex)return;gl.activeTexture(gl.TEXTURE0
 /* ---------- HUD ---------- */
 const hud=document.getElementById('hud'),cx=hud.getContext('2d');
 let W=0,H=0,DPR=1;
+// calidad adaptativa: multiplica la resolución del WebGL (tope 1.5); baja sola si los FPS caen
+let quality=1,ftAvg=16.7,ftN=0,lastNow=0;
 function resize(){DPR=Math.min(devicePixelRatio||1,2);W=cv.clientWidth;H=cv.clientHeight;
-  const gs=Math.min(DPR,1.5);cv.width=Math.round(W*gs);cv.height=Math.round(H*gs);gl.viewport(0,0,cv.width,cv.height);
+  const gs=Math.min(DPR,1.5)*quality;cv.width=Math.round(W*gs);cv.height=Math.round(H*gs);gl.viewport(0,0,cv.width,cv.height);
   hud.width=Math.round(W*DPR);hud.height=Math.round(H*DPR);cx.setTransform(DPR,0,0,DPR,0,0)}
 addEventListener('resize',resize);resize();
 
@@ -120,7 +122,7 @@ const railEls=[...document.querySelectorAll('#rail span')];
 let pS=0,freezeImg=null,portraitImg=null,started=false,t0=performance.now();
 // anti-lag: el loop solo corre mientras el sticky está en pantalla
 let onScreen=true,running=false;
-function startLoop(){if(started&&onScreen&&!running){running=true;requestAnimationFrame(frame)}}
+function startLoop(){if(started&&onScreen&&!running){running=true;lastNow=0;requestAnimationFrame(frame)}}
 new IntersectionObserver(([e])=>{onScreen=e.isIntersecting;startLoop()},{rootMargin:'-2px 0px'}).observe(document.getElementById('stage'));
 function progress(){const r=track.getBoundingClientRect();const span=track.offsetHeight-innerHeight;return clamp(-r.top/span)}
 function pad(n){return String(n).padStart(2,'0')}
@@ -129,6 +131,8 @@ function frame(now){
   if(!onScreen){running=false;return}
   requestAnimationFrame(frame);
   const t=(now-t0)/1000;
+  const dt=now-lastNow;lastNow=now;
+  if(dt>0&&dt<100){ftAvg+=(dt-ftAvg)*.05;if(++ftN>90&&ftAvg>24&&quality>.55){quality=Math.max(.55,quality*.8);ftN=0;ftAvg=16.7;resize()}}
   const pT=progress();pS+=(pT-pS)*(reduce?1:.14);if(Math.abs(pT-pS)<.0004)pS=pT;const p=pS;
   const A=W/H;
 

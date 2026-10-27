@@ -37,8 +37,29 @@ Usar siempre los tokens, no colores sueltos.
 - `css/styles.css` — estilos.
 - `js/fondo.js` — fondo WebGL manejado por scroll, HUD, consola (módulo ES).
 - `js/deteccion.js` — exporta `DET` (cajas de personas por fotograma).
-- `frames/` fotogramas del timelapse · `img/` freeze, retrato y evidencias · `fotos/` fotos de la galería.
+- `js/archivo.js` — ARCHIVO (galería): grilla, filtros, visor de detalle, anclas con scroll suave.
+- `js/archivo-data.js` — lista de fotos (GENERADO, no editar a mano).
+- `frames/` fotogramas del timelapse · `img/` freeze, retrato y evidencias de la ficha.
+- `fotos/` — originales de Bruno (no se sirven directo, no tocar).
+- `img/archivo/sm/` miniaturas 480 px webp (grilla) · `img/archivo/lg/` 1800 px webp (solo en el visor).
+- `assets/` — logo SVG, favicon, `og.jpg` (imagen para compartir), PNG y video originales.
 - `referencias/` — imágenes de referencia de estilo (no se publican en la web).
+
+## Secciones (en orden)
+1. Fondo `#track/#stage` (CAM 07 → ficha/expediente).
+2. `#archivo` — "ARCHIVO // EVIDENCIA": fotos en verde visión nocturna, a color al pasar el mouse
+   o en el visor. Filtros: TODO / RETRATOS / CALLE / EN VIVO.
+3. `#contacto` — "REPORTAR AVISTAMIENTO": Instagram (DM `https://ig.me/m/yo.zur` y perfil).
+4. Pie — logo, "FIN DE TRANSMISIÓN", volver arriba.
+
+## Agregar o cambiar fotos del archivo
+1. Copiar la foto a `fotos/` como `zk-XX.jpg|webp`.
+2. Agregar su categoría y texto alternativo en `INFO` dentro de `tools/build-archivo.py`.
+3. `python tools/build-archivo.py` (necesita Pillow) → regenera miniaturas, grandes y `js/archivo-data.js`.
+
+## Publicar
+Es un sitio estático: subir la carpeta tal cual (Netlify, Cloudflare Pages, GitHub Pages, Vercel).
+Cuando haya dominio, poner la URL absoluta en `og:image` (`https://DOMINIO/assets/og.jpg`).
 
 ## Desarrollo
 - `npm run dev` y abrir http://localhost:3000 (con doble clic / `file://` el WebGL no carga las imágenes).

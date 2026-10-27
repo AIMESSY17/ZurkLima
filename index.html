@@ -4,14 +4,24 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>ZURKLIMA — CAM 07</title>
-  <meta name="description" content="ZURKLIMA — Fotografía de Bruno en Neuquén.">
+  <meta name="description" content="ZURKLIMA: fotografía de Bruno en Neuquén. Retratos, calle y escena en vivo.">
+  <meta name="theme-color" content="#030603">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="es_AR">
+  <meta property="og:title" content="ZURKLIMA — CAM 07">
+  <meta property="og:description" content="Fotografía de Bruno en Neuquén. Retratos, calle y escena en vivo.">
+  <meta property="og:image" content="assets/og.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Courier+Prime:wght@400;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
   <link rel="stylesheet" href="css/styles.css">
   <script type="module" src="js/fondo.js"></script>
+  <script type="module" src="js/archivo.js"></script>
 </head>
 <body>
+  <a class="skip" href="#archivo">Saltar al archivo</a>
   <div id="boot" aria-live="polite">
     <div>&gt; cam07.connect("NQN-CENTRO")</div>
     <div class="pct" id="bootPct">00%</div>
@@ -19,6 +29,7 @@
   </div>
 
   <div id="track">
+    <span id="top"></span>
     <div id="stage">
       <canvas id="gl"></canvas>
       <canvas id="hud"></canvas>
@@ -86,11 +97,64 @@
     </div>
   </div>
 
-  <section id="archivo">
-    <div class="in">
-      <div class="k">ARCHIVO // PRÓXIMA FASE</div>
-      <p>Acá sigue la página: la galería de trabajos, los temas y el contacto. Esta maqueta es solo el fondo de entrada.</p>
+  <main>
+    <section id="archivo" aria-labelledby="archivo-h">
+      <header class="a-head">
+        <div class="a-rec"><span class="dot">●</span> REC · ARCHIVO 0299 · CAM 01–21</div>
+        <h2 id="archivo-h">ARCHIVO <span>// EVIDENCIA</span></h2>
+        <p class="a-note">Registro completo del sujeto 0299. Retratos, calle y escena en vivo: fotografía de Bruno en Neuquén.</p>
+        <div class="a-bar">
+          <div class="filtros" role="group" aria-label="Filtrar evidencia">
+            <button type="button" data-f="todo" aria-pressed="true">TODO <b></b></button>
+            <button type="button" data-f="retratos" aria-pressed="false">RETRATOS <b></b></button>
+            <button type="button" data-f="calle" aria-pressed="false">CALLE <b></b></button>
+            <button type="button" data-f="en-vivo" aria-pressed="false">EN VIVO <b></b></button>
+          </div>
+          <div class="a-count" id="aCount" aria-live="polite"></div>
+        </div>
+      </header>
+      <ol class="grid" id="grid"></ol>
+    </section>
+
+    <section id="contacto" aria-labelledby="contacto-h">
+      <div class="c-in">
+        <div class="c-k">CONTACTO // REPORTAR AVISTAMIENTO</div>
+        <h2 id="contacto-h">¿Lo viste con la cámara?<br><em>Que te fotografíe a vos.</em></h2>
+        <p class="c-note">Sesiones de retrato, coberturas de shows y fotos para artistas en Neuquén y alrededores. Escribile directo por Instagram.</p>
+        <div class="c-log" aria-hidden="true">&gt; sesiones.disponibles = true<br>&gt; zona = "NQN · AR"<br>&gt; canal.seguro = instagram</div>
+        <div class="acts">
+          <a class="btn" href="https://ig.me/m/yo.zur" target="_blank" rel="noopener" aria-label="Escribir por Instagram (se abre en otra pestaña)">ESCRIBIR POR INSTAGRAM ↗</a>
+          <a class="btn ghost" href="https://www.instagram.com/yo.zur/" target="_blank" rel="noopener" aria-label="Ver el Instagram de ZURKLIMA (se abre en otra pestaña)">VER PERFIL ↗</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="pie">
+    <img class="logo" src="assets/logo-zurklima.svg" alt="ZURKLIMA" width="1080" height="700" loading="lazy">
+    <div class="pie-t">© 2026 ZURKLIMA · FOTOGRAFÍA · NEUQUÉN</div>
+    <div class="pie-t dim">FIN DE TRANSMISIÓN · CAM 07</div>
+    <a class="pie-up" href="#top">VOLVER A CAM 07 ↑</a>
+  </footer>
+
+  <dialog id="visor" aria-label="Visor de evidencia">
+    <div class="v-top">
+      <span id="vId">EVIDENCIA</span>
+      <button type="button" class="v-x" id="vClose" aria-label="Cerrar">CERRAR ✕</button>
     </div>
-  </section>
+    <figure class="v-fig">
+      <div class="v-frame">
+        <img id="vImg" alt="">
+        <i class="v-scan" aria-hidden="true"></i>
+        <span class="v-load" id="vLoad">DESCARGANDO EVIDENCIA…</span>
+      </div>
+      <figcaption id="vCap"></figcaption>
+    </figure>
+    <div class="v-nav">
+      <button type="button" id="vPrev" aria-label="Evidencia anterior">◀ ANT</button>
+      <span class="v-meta" id="vMeta"></span>
+      <button type="button" id="vNext" aria-label="Evidencia siguiente">SIG ▶</button>
+    </div>
+  </dialog>
 </body>
 </html>
