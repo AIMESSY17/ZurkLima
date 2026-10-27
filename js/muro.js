@@ -458,7 +458,7 @@ export function initMuro({wrap, fotos, labels, onOpen}) {
   // atrás: si la entrada actual sigue siendo la sala (p. ej. se cerró una ficha abierta encima), seguir adentro
   addEventListener('popstate', () => {
     if (!full || (history.state && history.state.muro)) return;
-    if (history.state && history.state.ficha) return;
+    if ((history.state && history.state.ficha) || /^#zk-\d+$/i.test(location.hash)) return;   // abrir una ficha por hash no es "atrás"
     exitFull(true);
   });
   document.addEventListener('keydown', e => {

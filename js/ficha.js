@@ -215,7 +215,11 @@ export function initFicha({fotos, cam, getVisible, onOpenChange}) {
       thumbs.innerHTML = fotos.map((g, j) => g.cat !== f.cat ? '' :
         `<a href="${hashOf(g)}" data-i="${j}" aria-label="${g.codigo}: ${g.titulo}"><img src="img/archivo/sm/${g.id}.webp" alt="" loading="lazy" decoding="async"></a>`).join('');
     }
-    thumbs.querySelectorAll('a').forEach(a => { const on = +a.dataset.i === cur; a.setAttribute('aria-current', on ? 'true' : 'false'); if (on) a.scrollIntoView({block: 'nearest', inline: 'nearest'}); });
+    thumbs.querySelectorAll('a').forEach(a => {
+      const on = +a.dataset.i === cur; a.setAttribute('aria-current', on ? 'true' : 'false');
+      // centrar la miniatura actual moviendo solo la tira (scrollIntoView también movería la hoja)
+      if (on) thumbs.scrollLeft = a.offsetLeft - thumbs.offsetLeft - (thumbs.clientWidth - a.offsetWidth) / 2;
+    });
   }
   thumbs.addEventListener('click', e => { const a = e.target.closest('a'); if (!a) return; e.preventDefault(); go(+a.dataset.i); });
 
@@ -324,7 +328,8 @@ export function initFicha({fotos, cam, getVisible, onOpenChange}) {
   });
   // hash escrito a mano o link a #zk-014
   const fromHash = () => { const m = /^#zk-(\d{1,3})$/i.exec(location.hash); if (!m) return -1; return fotos.findIndex(g => g.codigo === 'ZK-' + m[1].padStart(3, '0')); };
-  addEventListener('hashchange', () => { const j = fromHash(); if (j >= 0 && cur !== j) { if (dlg.open) go(j); else { history.replaceState(null, '', location.pathname + location.search); history.pushState({ficha: fotos[j].codigo}, '', location.pathname + location.search + hashOf(fotos[j])); open(j); } } });
+  // (la entrada que creó el hash nuevo pasa a ser la de la ficha: atrás vuelve a donde estaba, p. ej. la sala)
+  addEventListener('hashchange', () => { const j = fromHash(); if (j >= 0 && cur !== j) { if (dlg.open) go(j); else { history.replaceState({ficha: fotos[j].codigo}, '', location.href); open(j); } } });
   // al redimensionar, reubicar foto y cotas (sin animar)
   let rz = 0;
   addEventListener('resize', () => { if (!dlg.open || cur < 0) return; cancelAnimationFrame(rz); rz = requestAnimationFrame(() => { const f = fotos[cur]; dlg.classList.remove('anim'); overlay(f, layoutPhoto(f), 0); if (img.complete && img.naturalWidth) drawCanvases(f); }); });
