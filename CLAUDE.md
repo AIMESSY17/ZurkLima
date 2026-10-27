@@ -43,7 +43,8 @@ Usar siempre los tokens, no colores sueltos.
 - `js/deteccion.js` — exporta `DET` (cajas de personas por fotograma).
 - `js/archivo.js` — ARCHIVO: elige muro o grilla, filtros, visor de detalle, anclas con scroll suave.
 - `js/archivo-data.js` — lista de fotos (GENERADO, no editar a mano).
-- `frames/` fotogramas del timelapse · `img/` freeze, retrato y evidencias de la ficha.
+- `frames/` fotogramas del timelapse (108, 1280 px) · `frames/m/` versión liviana para celular (54, 640 px,
+  webp q45; se regenera con `python tools/build-frames-m.py`) · `img/` freeze, retrato y evidencias de la ficha.
 - `fotos/` — originales de Bruno (no se sirven directo, no tocar).
 - `img/archivo/atlas.webp` — las 21 fotos en una sola textura (celdas 448 px) para el muro.
 - `img/archivo/sm/` miniaturas 480 px webp (grilla de respaldo) · `img/archivo/lg/` 1800 px webp (solo en el visor).
@@ -113,6 +114,17 @@ Cuando haya dominio, poner la URL absoluta en `og:image` (`https://DOMINIO/asset
 ## Fondo
 - **No cambiar la línea de tiempo del fondo** (fases, porcentajes de scroll, fotograma congelado 61,
   sujeto, zoom, enhance, match, ficha) salvo que se pida explícitamente.
+- Carga (`js/fondo.js`): con `innerWidth < 820` o `navigator.connection.saveData` usa `frames/m/` (la lógica
+  funciona con 54 o 108 fotogramas: `N`/`STEP`; `DET` y el contador siguen la numeración original de 108).
+  El cartel de carga se va apenas están el primer fotograma, `freeze.webp` y `subject.webp`; el resto baja
+  de fondo en orden de uso (de a 4). Se guardan comprimidos y se decodifican con `createImageBitmap` solo el
+  actual y los 2 siguientes; si uno no llegó se usa el más cercano. La textura se sube solo si cambia.
+- Costo por cuadro: calidad adaptativa del WebGL (inicio 1.0 desktop / 0.75 celular; si el promedio de
+  30 cuadros pasa 20 ms baja 0.1 hasta 0.5; si sobra, sube de a 0.05). HUD 2D con densidad máxima 1.5 y
+  redibujado solo si cambió el scroll, el fotograma (con cajas a la vista) o hay algo animándose. Al DOM
+  solo se le escribe lo que cambió. Texto de anotaciones con contorno, no `shadowBlur`.
+- Anotaciones de la fase esfera: esquivan el logo, los textos del inicio y el HUD (zonas medidas con
+  `getBoundingClientRect`); por debajo de 820 px, como máximo 2 (arriba y abajo de la esfera).
 
 ## Reglas anti-lag (aplican a todo)
 - Nada de `backdrop-filter` / blur encima de zonas que se mueven.
